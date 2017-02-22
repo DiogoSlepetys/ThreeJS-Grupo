@@ -1,1 +1,6 @@
-Projeto, Aparecido
+Use miniweb.exe to open a server 
+
+then, 
+using your browser, 
+
+access the .html file into htdocs folder. 
