@@ -11,6 +11,24 @@
 				overflow: hidden;
 			}
 		</style>
+		
+		<!--Shaders Declaration-->
+		<script type="x-shader/x-vertex" id="vertexShader">  
+			 
+			void main()
+			{
+			}
+		</script>
+
+		<script type="x-shader/x-fragment" id="fragmentShader">  
+			 
+			void main()
+			{
+				gl_FragColor = vec4(0.0,1.0,1.0,0.5);
+			}
+		</script>  
+		
+		
 	</head>
 	<body>
 
@@ -83,13 +101,52 @@
 					} );
 				} );
 				
+				//now, let's add shaders to our materials, they are crucial for achieving nice fx
+				//creating a shader material:
+				
+				var lmaterial = new THREE.ShaderMaterial( {
+
+					vertexShader: document.getElementById( 'vertexShader' ).textContent,
+					fragmentShader: document.getElementById( 'fragmentShader' ).textContent
+
+				} );
+				
+				//let's try a physical shader
+				var reflectionCube = new THREE.CubeTextureLoader()
+					.setPath( 'textures/' )
+					.load( [ 'sky.png', 'sky.png', 'sky.png', 'sky.png', 'sky.png', 'sky.png' ] );
+				scene.background = reflectionCube;
+
+				
+				var col =  new THREE.Color("rgb(0, 200, 255)");
+				
+				var physMaterial = new THREE.MeshPhysicalMaterial( {
+					color: col,
+					metalness: 0.5,
+					roughness: 0.0,
+					clearCoat:  1.0,
+					clearCoatRoughness: 1.0,
+					reflectivity: 0.9,
+					envMap: reflectionCube
+				} );
+				
+				//create a sphere to recieve le shading
+				
+				var ageometry = new THREE.SphereGeometry(3, 50, 50, 0, Math.PI * 2, 0, Math.PI * 2);
+				var smaterial = new THREE.MeshNormalMaterial();
+				var sph = new THREE.Mesh(ageometry, physMaterial);
+				sph.scale.x = sph.scale.y = sph.scale.z = 20;
+				sph.position.y = 100;
+				scene.add(sph);
+				
+				
 				
 				renderer = new THREE.WebGLRenderer();
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
 				renderer.setClearColor(0x3399ff);
 				document.body.appendChild( renderer.domElement );
-
+				
 				//
 
 				window.addEventListener( 'resize', onWindowResize, false );
@@ -108,8 +165,11 @@
 			
 			//sets a global light with color = white
 			function initLights() {
-				var light = new THREE.AmbientLight(0xffffff);
-				scene.add(light);
+				var globalLight = new THREE.AmbientLight(0xaaaabb);
+				scene.add(globalLight);
+				var light = new THREE.PointLight( 0xffffff, 2, 0, 2);
+				light.position.set( 50, 500, 20 );
+				scene.add( light );
 			}
 			
 			function animate() {
@@ -150,10 +210,10 @@
 				camera.getWorldDirection(cam);
 				
 				//camera moves forward, based on it rotation
-				if(wFront == true){ camera.position.x += cam.x; camera.position.z += cam.z;}
-				if(wBack == true){ camera.position.x -= cam.x; camera.position.z -= cam.z;}
-				if(rotLeft == true){camera.rotation.y += 0.02;}
-				if(rotRight == true){camera.rotation.y -= 0.02;}
+				if(wFront == true){ camera.position.x += cam.x*2; camera.position.z += cam.z*2;}
+				if(wBack == true){ camera.position.x -= cam.x*2; camera.position.z -= cam.z*2;}
+				if(rotLeft == true){camera.rotation.y += 0.04;}
+				if(rotRight == true){camera.rotation.y -= 0.04;}
 				//camera.rotation.z += 0.001;
 				mesh.rotation.x += 0.005;
 				mesh.rotation.y += 0.01;
@@ -165,7 +225,7 @@
 
 		</script>
 		<div>
-			<h1>Bom Dia! SkyNeide!</h1>
+			<h1>!!!!!!!!!!</h1>
 		</div>
 	</body>
 </html>
