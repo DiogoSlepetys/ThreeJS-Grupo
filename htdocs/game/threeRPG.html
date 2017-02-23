@@ -60,15 +60,25 @@
 				var geometry = new THREE.BoxBufferGeometry( 20, 20, 20 );
 				var material = new THREE.MeshBasicMaterial( { map: texture } );
 
-				for(var i = 0; i < 20; i++){
+				for(var i = 4; i < 20; i++){
 				mesh = new THREE.Mesh( geometry, material );
 				mesh.position.x += 20*i;
 				scene.add( mesh );
 				}
-				
-				var texturex = new THREE.TextureLoader().load( 'textures/grassFloor2.png' );
-				var materialx = new THREE.MeshBasicMaterial( { map: texturex } );
-				mesho = new THREE.Mesh( geometry, materialx );
+                
+                // API: THREE.CylinderGeometry(bottomRadius, topRadius, height, segmentsRadius, segmentsHeight)
+                cylinder = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 30 , 100, 100, false), new THREE.MeshBasicMaterial({color: '#880066'}));
+                cylinder.position.x = -50;
+                cylinder.position.y = 0;
+                cylinder.position.z = -50;
+                scene.add(cylinder);
+                
+
+				var texturex = new THREE.TextureLoader().load( 'textures/metal_floor.png' );
+				texturex.repeat.set(20,20);
+                texturex.wrapS = texturex.wrapT = THREE.RepeatWrapping;
+                var materialx = new THREE.MeshBasicMaterial( { map: texturex } );
+                mesho = new THREE.Mesh( geometry, materialx );
 				
 				mesho.scale.x = mesho.scale.z = 100;
 				mesho.position.y -= 60;
@@ -94,10 +104,12 @@
 					}
 					var material = new THREE.MeshLambertMaterial({
                      map: THREE.ImageUtils.loadTexture('textures/LOWBAU2.png')});
-					var meshe = new THREE.Mesh(o.geometry, material);
-					meshe.scale.x = meshe.scale.y = meshe.scale.z = 20;
-					meshe.position.y -= 50;
-					scene.add( meshe );
+					var bau = new THREE.Mesh(o.geometry, material);
+					bau.scale.x = bau.scale.y = bau.scale.z = 20;
+					bau.position.y -= 50;
+                    bau.position.x += 200;
+                    bau.position.z += 50;
+					scene.add( bau );
 					} );
 				} );
 				
@@ -114,8 +126,10 @@
 				//let's try a physical shader
 				var reflectionCube = new THREE.CubeTextureLoader()
 					.setPath( 'textures/' )
-					.load( [ 'sky.png', 'sky.png', 'sky.png', 'sky.png', 'sky.png', 'sky.png' ] );
-				scene.background = reflectionCube;
+					.load( [ 'metal_wall2.png', 'metal_wall2.png', 'metal_wall2.png', 'metal_wall2.png', 'metal_wall2.png', 'metal_wall2.png' ] );
+
+                scene.background = reflectionCube;
+                
 
 				
 				var col =  new THREE.Color("rgb(0, 200, 255)");
@@ -163,13 +177,23 @@
 
 			}
 			
+            
+            //lights
 			//sets a global light with color = white
 			function initLights() {
-				var globalLight = new THREE.AmbientLight(0xaaaabb);
-				scene.add(globalLight);
-				var light = new THREE.PointLight( 0xffffff, 2, 0, 2);
-				light.position.set( 50, 500, 20 );
-				scene.add( light );
+				particleLight = new THREE.Mesh( new THREE.SphereBufferGeometry( 4, 8, 8 ), new THREE.MeshBasicMaterial( { color: 0xffffff } ) );
+				
+                scene.add( particleLight );
+                scene.add( new THREE.AmbientLight( 0x222222 ) );
+				
+				var pointLight = new THREE.PointLight( 0xffffff, 2, 800 );
+				particleLight.add( pointLight );
+                
+                //var globalLight = new THREE.AmbientLight(0xaaaabb);
+				//scene.add(globalLight);
+				//var light = new THREE.PointLight( 0xffffff, 2, 0, 2);
+				//light.position.set( 50, 500, 20 );
+				//scene.add( light );
 			}
 			
 			function animate() {
@@ -178,30 +202,30 @@
 
 				//the key events occur once, so we need to set a flag to keep the key "pressed"
 				document.onkeydown = function(e) {
-				  if(e.keyCode == 38) {
+				  if(e.keyCode == 87) {
 					wFront = true;
 				  }
-				  if(e.keyCode == 40) {
+				  if(e.keyCode == 83) {
 					wBack = true;
 				  }
-				  if(e.keyCode == 37) {
+				  if(e.keyCode == 65) {
 					rotLeft = true;
 				  }
-				  if(e.keyCode == 39) {
+				  if(e.keyCode == 68) {
 					rotRight = true;
 				  }
 				}
 				document.onkeyup = function(e) {
-				  if(e.keyCode == 38) {
+				  if(e.keyCode == 87) {
 					wFront = false;
 				  }
-				  if(e.keyCode == 40) {
+				  if(e.keyCode == 83) {
 					wBack = false;
 				  }
-				  if(e.keyCode == 37) {
+				  if(e.keyCode == 65) {
 					rotLeft = false;
 				  }
-				  if(e.keyCode == 39) {
+				  if(e.keyCode == 68) {
 					rotRight = false;
 				  }
 				}
@@ -217,7 +241,20 @@
 				//camera.rotation.z += 0.001;
 				mesh.rotation.x += 0.005;
 				mesh.rotation.y += 0.01;
-
+                
+              
+                
+                
+                var timer = Date.now() * 0.00025;
+                
+                particleLight.position.x =Math.cos( timer * 7 ) * 80;
+				particleLight.position.y =100+Math.cos( timer * 5 ) * 80;
+				particleLight.position.z = Math.cos( timer * 3 ) * 80;
+				
+                
+                cylinder.scale.y =1+Math.abs(Math.cos(timer*5)*2) ;
+                
+                
 				
 				renderer.render( scene, camera );
 
@@ -225,7 +262,7 @@
 
 		</script>
 		<div>
-			<h1>!!!!!!!!!!</h1>
+			<h1>Joao SteakHolder</h1>
 		</div>
 	</body>
 </html>
