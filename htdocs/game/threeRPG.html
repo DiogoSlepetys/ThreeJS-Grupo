@@ -7,38 +7,64 @@
 		<style>
 			body {
 				margin: 0px;
-				background-color: #333777;
+				background-color: #777779;
 				overflow: hidden;
 			}
 		</style>
-		
+
 		<!--Shaders Declaration-->
-		<script type="x-shader/x-vertex" id="vertexShader">  
-			 
-			void main()
-			{
+		<script type="x-shader/x-vertex" id="vertexshader">
+			attribute float size;
+			attribute vec3 customColor;
+			varying vec3 vColor;
+			void main() {
+				vColor = customColor;
+				vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+				gl_PointSize = size * ( 300.0 / -mvPosition.z );
+				gl_Position = projectionMatrix * mvPosition;
 			}
 		</script>
 
-		<script type="x-shader/x-fragment" id="fragmentShader">  
-			 
-			void main()
-			{
-				gl_FragColor = vec4(0.0,1.0,1.0,0.5);
+		<script type="x-shader/x-fragment" id="fragmentshader">
+			uniform vec3 color;
+			uniform sampler2D texture;
+			varying vec3 vColor;
+			void main() {
+				gl_FragColor = vec4( color * vColor, 1.0 );
+				gl_FragColor = gl_FragColor * texture2D( texture, gl_PointCoord );
 			}
-		</script>  
+		</script> 
 		
 		
 	</head>
 	<body>
-
+		<!--
+		<div>
+			<p id="textelement">I am a text element</p>
+		</div>
+		-->
 		<script src="../build/three.js"></script>
+		<script src="../build/stats.js"></script>
+		<script src="materials.js"></script>
+		<!--Map Tiles Document-->
+		<script src="maps/Grass1.js"></script>
 		
 		<script>
-
+			
+			//the fps meter
+			var stats = new Stats();
+			stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+			document.body.appendChild( stats.dom );
+			
+			
+			var leaves = [];
+			var tileGeometries = [];
+			var tileMeshes = [];
+			var textures = [];
 			var camera, scene, renderer;
 			var mesh, marmesh;
 			var wFront, wBack, rotLeft, rotRight = "false";
+			var aluV, aluS;
 			
 			init();
 			initLights();
@@ -48,10 +74,12 @@
 
 				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 1000 );
 				camera.position.z = 400;
+				camera.position.y = 100;
+				camera.rotation.x = -1.15;
 
 				scene = new THREE.Scene();
 
-				
+				/*
 				//there are 3 ways of loading an object to scene:
 				
 				//first: we are loading a texture followed by a three.js cube 
@@ -65,15 +93,204 @@
 				mesh.position.x += 20*i;
 				scene.add( mesh );
 				}
-				
+				/*
 				var texturex = new THREE.TextureLoader().load( 'textures/grassFloor2.png' );
 				var materialx = new THREE.MeshBasicMaterial( { map: texturex } );
 				mesho = new THREE.Mesh( geometry, materialx );
 				
-				mesho.scale.x = mesho.scale.z = 100;
+				mesho.scale.x = mesho.scale.z = 200;
 				mesho.position.y -= 60;
 				scene.add(mesho);
+				*/
 				
+				//tile system////////////////////////////
+				/*
+				new THREE.ObjectLoader().load( 'models/tile.js', function ( object ) {
+					object.traverse( function ( o ) {
+					tileGeometry = o.geometry
+					var meshq = new THREE.Mesh(tileGeometry);
+					meshq.scale.x = meshq.scale.y = meshq.scale.z = 20;
+					meshq.position.y -= 20;
+					scene.add( meshq );
+					} );
+				} );*/
+				/*
+				var tileModel = new THREE.JSONLoader().load('models/tile.js',
+				function ( geometry, mat )
+				{
+					var meshq = new THREE.Mesh(geometry, mat);
+					meshq.scale.x = meshq.scale.y = meshq.scale.z = 20;
+					meshq.position.y -= 20;
+					scene.add( meshq );
+				};*/	
+				/*
+				var tileSheet = new THREE.TextureLoader().load( 'textures/grassBeach512.png' );
+				//let's make tiles match perfectly
+				tileSheet.wrapS = tileSheet.wrapT = THREE.ClampToEdgeWrapping;
+				tileSheet.magFilter = THREE.NearestFilter;
+				tileSheet.minFilter = THREE.LinearMipMapLinearFilter;
+				
+				var tileGeom = new THREE.BoxBufferGeometry( 1, 0, 1 );
+				//setting our tilesheet
+				
+				//as tilesheets MUST be power of two images, and we are using 515x512 tilesheets with 16x16 (32px)tiles
+				//we need to "zoom" the texture by 1/16 = 0.0625
+				tileSheet.repeat.set( 0.0625, 0.0625);
+				
+				var col = 0;
+				//lay down a 64x64 tiles map
+				for(var i = 0; i < 63; i++){
+					
+					for(var j = 0; j < 63; j++){
+						
+						//every offset represents a tile from our tilesheet, with 0.0x and 0.8750y representing the top left tile
+						tile = FirstMap[col];
+						document.getElementById("textelement").innerHTML = bau;
+						tilex = tile/16;
+						tiley = tile%16;
+						
+						tileSheet.offset.x = tilex*0.0625; //from 0.9375 to 0 by 0.0625 steps
+						tileSheet.offset.y = 1 - tiley*0.0625;
+
+						//tileSheet.offset.x = 0.0; //from 0.9375 to 0 by 0.0625 steps
+						//tileSheet.offset.y = 0.9375;
+						
+						tileMaterial[col] = new THREE.MeshBasicMaterial( { map: tileSheet } );
+						
+						var tiles = new THREE.Mesh( tileGeom, tileMaterial[col] );
+						tiles.scale.x = tiles.scale.y = tiles.scale.z = 20;
+						tiles.position.x += 20*i; tiles.position.z += 20*j;
+						tiles.position.y = -20;
+						
+						scene.add( tiles.clone() );
+						
+						col++;
+					}
+				}*/
+				//end tile system////////////////////////////
+
+				//player test
+				var playerTex = new THREE.TextureLoader().load( 'textures/testAlu.png' );
+				var shadowTex = new THREE.TextureLoader().load( 'textures/shadow.png' );
+				var playerMat = new THREE.MeshBasicMaterial( { map: playerTex, transparent: true, opacity: 1 } );
+				var shadowMat = new THREE.MeshBasicMaterial( { map: shadowTex, transparent: true, opacity: 0.5 ,depthWrite: false } );
+				var playerGeometry = new THREE.PlaneBufferGeometry( 20, 30 );
+				var shadowGeometry = new THREE.PlaneBufferGeometry( 16, 16 );
+				aluV = new THREE.Mesh( playerGeometry, playerMat );
+				aluS = new THREE.Mesh( shadowGeometry, shadowMat );
+				scene.add(aluS);
+				scene.add(aluV);
+				aluS.rotation.x = -Math.PI/2;
+				aluS.position.y -= 19;
+				
+				//tree test
+				new THREE.ObjectLoader().load( 'models/tree.js', function ( object ) {
+					object.traverse( function ( o ) {
+					if ( o.type == "Mesh" && o.material && ! o.material.transparent ) {
+					o.material.side = THREE.DoubleSide;
+					}
+					var barkTex = new THREE.TextureLoader().load( 'textures/treeBark1.png' );
+					barkTex.magFilter = THREE.NearestFilter;
+					barkTex.minFilter = THREE.LinearMipMapLinearFilter;
+					var material = new THREE.MeshLambertMaterial({
+                     map: barkTex});
+					var meshe = new THREE.Mesh(o.geometry, material);
+					meshe.scale.x = meshe.scale.y = meshe.scale.z = 16;
+					meshe.position.y -= 50;
+					meshe.position.x += 400;
+					meshe.position.z += 200;
+					scene.add( meshe );
+					} );
+				} );
+				var treeShadow = aluS.clone();
+				scene.add(treeShadow);
+				treeShadow.position.x = 400;
+				treeShadow.position.z = 200;
+				treeShadow.scale.x = treeShadow.scale.y = 5;
+				
+				
+				//tile system 2/////////////////////////////////////////////////////////////////////////////
+				
+				//tile geometry
+				var tileGeometry = new THREE.PlaneBufferGeometry( 20, 20 );
+				
+				//tilesheet texture
+				var tileSheet = new THREE.TextureLoader().load( 'textures/grassBeach512.png' );
+				//let's make tiles match perfectly using clamp wrapping and look crispy sharp with filtering!
+				tileSheet.wrapS = tileSheet.wrapT = THREE.ClampToEdgeWrapping;
+				tileSheet.magFilter = THREE.NearestFilter;
+				tileSheet.minFilter = THREE.LinearMipMapLinearFilter;
+				
+				//tile flat/basic material from texture
+				var tileMaterial = new THREE.MeshBasicMaterial( { map: tileSheet } );
+				
+				//this loop will create a tile mesh array, using a single material and geometry clones
+				//1- clone geometry elements to buffer
+				//2- set their UV coordinates to match every single tile
+				//3- create new meshes from the clones
+				//4- save those meshes to buffer, so we can draw them later fast!
+				var counter = 1;
+				for(var i = 0; i < 16; i++){
+					
+					for(var j = 0; j < 16; j++){
+						
+						var newTile = tileGeometry.clone();
+						
+						var uv = [j*0.0625,1-(i*0.0625),j*0.0625 + 0.0625,(1-(i*0.0625)) - 0.0625];
+						newTile.attributes.uv.array = new Float32Array([ uv[0],uv[1],  uv[2],uv[1],  uv[0],uv[3],  uv[2],uv[3] ] );
+							
+						tileGeometries[counter] =  newTile;
+						tileMeshes[counter] = new THREE.Mesh( tileGeometries[counter], tileMaterial );
+						
+						counter++;
+					}
+				}
+				
+				
+				//lay down a 64x64 tiles map
+				var count = 0;
+				for(var i = 0; i < 64; i++){
+					
+					for(var j = 0; j < 64; j++){
+					
+						//grab tile id from map file
+						var tileID = FirstMap[count];
+						
+						//clone from buffer
+						var myTile = tileMeshes[tileID].clone();
+						
+						//adjust global position
+						myTile.rotation.x = -Math.PI/2;
+						myTile.position.x = 20*j;
+						myTile.position.z = 20*i;
+						myTile.position.y -= 20;
+						
+						scene.add(myTile);
+
+						count++;
+					}
+				}
+				//end tyle system 2///////////////////////////////////////////////////////////////////////////
+				
+				//tree leaves using particles
+				var leafGeo = new THREE.PlaneBufferGeometry( 20, 20 );
+				var leafTex = new THREE.TextureLoader().load( 'textures/leafParticle.png' );
+				leafTex.magFilter = THREE.NearestFilter;
+				leafTex.minFilter = THREE.LinearMipMapLinearFilter;
+				var leafMat = new THREE.MeshBasicMaterial( { map: leafTex, transparent: true, opacity: 1, depthWrite: false } );
+				var leafMes = new THREE.Mesh( leafGeo, leafMat );
+				
+				for(var i = 0; i < 100; i++)
+				{
+					leafMes.position.x = 355 + Math.random()* 80;
+					leafMes.position.z = 175 + Math.random()* 70;
+					leafMes.position.y = 30 + Math.random()* 50;
+					leafMes.scale.x = leafMes.scale.z = leafMes.scale.y = 0.2 + Math.random() * 0.8;
+					camera.rotation.x = -1.15;
+					leaves[i] = leafMes.clone();
+					scene.add(leaves[i]);
+				}
+				/*
 				//second: we are using JSON files to load our objects, with materials and textures
 				//those files can be generated by using the three.js blender plugin
 				var loader = new THREE.JSONLoader();
@@ -97,6 +314,7 @@
 					var meshe = new THREE.Mesh(o.geometry, material);
 					meshe.scale.x = meshe.scale.y = meshe.scale.z = 20;
 					meshe.position.y -= 50;
+					meshe.position.x -= 50;
 					scene.add( meshe );
 					} );
 				} );
@@ -138,13 +356,13 @@
 				sph.scale.x = sph.scale.y = sph.scale.z = 20;
 				sph.position.y = 100;
 				scene.add(sph);
-				
+				*/
 				
 				
 				renderer = new THREE.WebGLRenderer();
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
-				renderer.setClearColor(0x3399ff);
+				renderer.setClearColor(0x114455);
 				document.body.appendChild( renderer.domElement );
 				
 				//
@@ -175,7 +393,7 @@
 			function animate() {
 
 				requestAnimationFrame( animate );
-
+				stats.begin();
 				//the key events occur once, so we need to set a flag to keep the key "pressed"
 				document.onkeydown = function(e) {
 				  if(e.keyCode == 38) {
@@ -210,22 +428,32 @@
 				camera.getWorldDirection(cam);
 				
 				//camera moves forward, based on it rotation
-				if(wFront == true){ camera.position.x += cam.x*2; camera.position.z += cam.z*2;}
-				if(wBack == true){ camera.position.x -= cam.x*2; camera.position.z -= cam.z*2;}
-				if(rotLeft == true){camera.rotation.y += 0.04;}
-				if(rotRight == true){camera.rotation.y -= 0.04;}
+				if(wFront == true){ camera.position.z -= 6;}
+				if(wBack == true){ camera.position.z += 6;}
+				if(rotLeft == true){ camera.position.x -= 6;}
+				if(rotRight == true){ camera.position.x += 6;}
+				//if(rotLeft == true){camera.rotation.y += 0.04;}
+				//if(rotRight == true){camera.rotation.y -= 0.04;}
 				//camera.rotation.z += 0.001;
-				mesh.rotation.x += 0.005;
-				mesh.rotation.y += 0.01;
-
 				
+				aluV.position.x = camera.position.x;
+				aluV.position.z = camera.position.z - 40;
+				aluV.rotation.x = camera.rotation.x + 0.5;
+				
+				aluS.position.x = camera.position.x;
+				aluS.position.z = camera.position.z - 36;
+				
+				for(var i = 0; i<100; i++)
+				{
+				leaves[i].lookAt( camera.position );
+				}
 				renderer.render( scene, camera );
-
+				
+				stats.end();
 			}
 
 		</script>
-		<div>
-			<h1>!!!!!!!!!!</h1>
-		</div>
+
 	</body>
+	
 </html>
