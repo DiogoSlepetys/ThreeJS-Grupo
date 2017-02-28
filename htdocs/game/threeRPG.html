@@ -51,18 +51,27 @@
 		
 		<script>
 			
+			//IMPORTANT note for future releases:
+			//consider using BufferGeometry objects to improve rendering performance (https://threejs.org/docs/api/core/BufferGeometry.html)
+			//read documentations!
+			
 			//the fps meter
 			var stats = new Stats();
 			stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
 			document.body.appendChild( stats.dom );
 			
+			//the raycasting variables
+			var raycaster = new THREE.Raycaster();
+			var mouse = new THREE.Vector2(), INTERSECTED;
+			var clickPosition = new THREE.Vector3;
 			
+			var playing = false;
 			var leaves = [];
 			var tileGeometries = [];
 			var tileMeshes = [];
 			var textures = [];
 			var camera, scene, renderer;
-			var mesh, marmesh;
+			var mesh, marmesh, dirPointer;
 			var wFront, wBack, rotLeft, rotRight = "false";
 			var aluV, aluS;
 			
@@ -172,16 +181,25 @@
 				//player test
 				var playerTex = new THREE.TextureLoader().load( 'textures/testAlu.png' );
 				var shadowTex = new THREE.TextureLoader().load( 'textures/shadow.png' );
+				var pointrTex = new THREE.TextureLoader().load( 'textures/pointer.png' );
+				pointrTex.magFilter = THREE.NearestFilter;
+				pointrTex.minFilter = THREE.LinearMipMapLinearFilter;
 				var playerMat = new THREE.MeshBasicMaterial( { map: playerTex, transparent: true, opacity: 1 } );
 				var shadowMat = new THREE.MeshBasicMaterial( { map: shadowTex, transparent: true, opacity: 0.5 ,depthWrite: false } );
+				var pointrMat = new THREE.MeshBasicMaterial( { map: pointrTex, transparent: true, opacity: 1 , depthWrite: false } );
 				var playerGeometry = new THREE.PlaneBufferGeometry( 20, 30 );
+				var pointrGeometry = new THREE.PlaneBufferGeometry( 20, 20 );
 				var shadowGeometry = new THREE.PlaneBufferGeometry( 16, 16 );
 				aluV = new THREE.Mesh( playerGeometry, playerMat );
 				aluS = new THREE.Mesh( shadowGeometry, shadowMat );
+				dirPointer = new THREE.Mesh( pointrGeometry, pointrMat );
+				scene.add(dirPointer);
 				scene.add(aluS);
 				scene.add(aluV);
 				aluS.rotation.x = -Math.PI/2;
 				aluS.position.y -= 19;
+				dirPointer.position.y -= 19;
+				dirPointer.rotation.x = -Math.PI/2;
 				
 				//tree test
 				new THREE.ObjectLoader().load( 'models/tree.js', function ( object ) {
@@ -274,7 +292,7 @@
 				
 				//tree leaves using particles
 				var leafGeo = new THREE.PlaneBufferGeometry( 20, 20 );
-				var leafTex = new THREE.TextureLoader().load( 'textures/leafParticle.png' );
+				var leafTex = new THREE.TextureLoader().load( 'textures/leafParticle3.png' );
 				leafTex.magFilter = THREE.NearestFilter;
 				leafTex.minFilter = THREE.LinearMipMapLinearFilter;
 				var leafMat = new THREE.MeshBasicMaterial( { map: leafTex, transparent: true, opacity: 1, depthWrite: false } );
@@ -328,7 +346,7 @@
 					fragmentShader: document.getElementById( 'fragmentShader' ).textContent
 
 				} );
-				
+				*/
 				//let's try a physical shader
 				var reflectionCube = new THREE.CubeTextureLoader()
 					.setPath( 'textures/' )
@@ -356,7 +374,7 @@
 				sph.scale.x = sph.scale.y = sph.scale.z = 20;
 				sph.position.y = 100;
 				scene.add(sph);
-				*/
+				
 				
 				
 				renderer = new THREE.WebGLRenderer();
@@ -366,7 +384,7 @@
 				document.body.appendChild( renderer.domElement );
 				
 				//
-
+				window.addEventListener( 'mousemove', onMouseMove, false );
 				window.addEventListener( 'resize', onWindowResize, false );
 
 			}
@@ -390,10 +408,28 @@
 				scene.add( light );
 			}
 			
+			//function to deal with mouse inputs
+			function onMouseMove( event ) {
+
+				event.preventDefault();
+				// calculate mouse position in normalized device coordinates
+				// (-1 to +1) for both components
+				mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+				mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+				
+			}
+			
 			function animate() {
 
-				requestAnimationFrame( animate );
+				if(playing == false)
+				{
+					var audio = new Audio('music/shivers.ogg');
+					audio.play();
+					playing = true;
+				}
 				stats.begin();
+				requestAnimationFrame( animate );
+				
 				//the key events occur once, so we need to set a flag to keep the key "pressed"
 				document.onkeydown = function(e) {
 				  if(e.keyCode == 38) {
@@ -443,12 +479,30 @@
 				aluS.position.x = camera.position.x;
 				aluS.position.z = camera.position.z - 36;
 				
+				//raycaster
+				// update the picking ray with the camera and mouse position
+				raycaster.setFromCamera( mouse, camera );
+
+				// calculate objects intersecting the picking ray
+				//we must save tiles and npcs to a list, so they will be the only raycasted elements!!!
+				var intersects = raycaster.intersectObjects( scene.children );
+				
+				if ( intersects.length > 0 ) {
+
+					clickPosition = intersects[0].object.position;
+					console.log(clickPosition);		
+				}
+				
+				dirPointer.position.x = clickPosition.x;
+				dirPointer.position.z = clickPosition.z;
+				
+				//leaves lookAt
 				for(var i = 0; i<100; i++)
 				{
 				leaves[i].lookAt( camera.position );
 				}
 				renderer.render( scene, camera );
-				
+
 				stats.end();
 			}
 
