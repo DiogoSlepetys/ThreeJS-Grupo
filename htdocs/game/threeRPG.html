@@ -43,9 +43,13 @@
 			<p id="textelement">I am a text element</p>
 		</div>
 		-->
+		
+		<!--ThreeJS library-->
 		<script src="../build/three.js"></script>
+		
+		<!--FPS monitor-->
 		<script src="../build/stats.js"></script>
-		<script src="materials.js"></script>
+		
 		<!--Map Tiles Document-->
 		<script src="maps/Grass1.js"></script>
 		
@@ -65,10 +69,16 @@
 			var mouse = new THREE.Vector2(), INTERSECTED;
 			var clickPosition = new THREE.Vector3;
 			
+			//audio
+			var audio;
+			var startTime;
+			var loopTime = 0;
+			
 			var playing = false;
 			var leaves = [];
 			var tileGeometries = [];
 			var tileMeshes = [];
+			var tiles2Raycast = [];
 			var textures = [];
 			var camera, scene, renderer;
 			var mesh, marmesh, dirPointer;
@@ -246,7 +256,7 @@
 				//1- clone geometry elements to buffer
 				//2- set their UV coordinates to match every single tile
 				//3- create new meshes from the clones
-				//4- save those meshes to buffer, so we can draw them later fast!
+				//4- save those meshes to buffer, so we can draw them later
 				var counter = 1;
 				for(var i = 0; i < 16; i++){
 					
@@ -283,11 +293,17 @@
 						myTile.position.z = 20*i;
 						myTile.position.y -= 20;
 						
+						if(FirstCol[count] != 257)
+						{
+							tiles2Raycast.push(myTile);
+						}
+						
 						scene.add(myTile);
 
 						count++;
 					}
 				}
+				//tiles2Raycast.splice(23, 1);
 				//end tyle system 2///////////////////////////////////////////////////////////////////////////
 				
 				//tree leaves using particles
@@ -304,7 +320,6 @@
 					leafMes.position.z = 175 + Math.random()* 70;
 					leafMes.position.y = 30 + Math.random()* 50;
 					leafMes.scale.x = leafMes.scale.z = leafMes.scale.y = 0.2 + Math.random() * 0.8;
-					camera.rotation.x = -1.15;
 					leaves[i] = leafMes.clone();
 					scene.add(leaves[i]);
 				}
@@ -347,6 +362,7 @@
 
 				} );
 				*/
+				/*
 				//let's try a physical shader
 				var reflectionCube = new THREE.CubeTextureLoader()
 					.setPath( 'textures/' )
@@ -374,7 +390,7 @@
 				sph.scale.x = sph.scale.y = sph.scale.z = 20;
 				sph.position.y = 100;
 				scene.add(sph);
-				
+				*/
 				
 				
 				renderer = new THREE.WebGLRenderer();
@@ -421,12 +437,24 @@
 			
 			function animate() {
 
+				//var soundEngine = new PlaySound('music/shivers.ogg', loopStart, loopDuration);
+				
+				//BG music
 				if(playing == false)
 				{
-					var audio = new Audio('music/shivers.ogg');
+					audio = new Audio('music/shivers.ogg');
+					
+					audio.addEventListener('ended', function() {
+					this.currentTime = 7;
+					this.play();
+					}, false);
+					
 					audio.play();
 					playing = true;
 				}
+				
+				//console.log("time: " +Date.now() / 1000);
+				
 				stats.begin();
 				requestAnimationFrame( animate );
 				
@@ -485,12 +513,12 @@
 
 				// calculate objects intersecting the picking ray
 				//we must save tiles and npcs to a list, so they will be the only raycasted elements!!!
-				var intersects = raycaster.intersectObjects( scene.children );
+				var intersects = raycaster.intersectObjects( tiles2Raycast );
 				
 				if ( intersects.length > 0 ) {
 
 					clickPosition = intersects[0].object.position;
-					console.log(clickPosition);		
+					//console.log(clickPosition);		
 				}
 				
 				dirPointer.position.x = clickPosition.x;
