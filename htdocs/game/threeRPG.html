@@ -43,8 +43,13 @@
 			<p id="textelement">I am a text element</p>
 		</div>
 		-->
+        <!--Tree Loader class-->
+        <script src="classes/TreeLoader.js"></script>
+        
+        <!--A* Graph-->
+		<script src="../build/pathfinding-browser.min.js"></script>
 		
-		<!--ThreeJS library-->
+        <!--ThreeJS library-->
 		<script src="../build/three.js"></script>
 		
 		<!--FPS monitor-->
@@ -74,7 +79,10 @@
 			var startTime;
 			var loopTime = 0;
 			
-			var playing = false;
+			var executePath = false;
+            var trajPoints = 0;
+            
+            var playing = false;
 			var leaves = [];
 			var tileGeometries = [];
 			var tileMeshes = [];
@@ -84,11 +92,25 @@
 			var mesh, marmesh, dirPointer;
 			var wFront, wBack, rotLeft, rotRight = "false";
 			var aluV, aluS;
+            var matrixGrid =[];
+            var grid =[];
+            var finder =[];
+            var gridBackup =[];
+            var path =[];
+            var charVel= [];
+            var dist =0;
+            
+            //clock
+            var time2Render = 0;
+            var time2Physic = 0;
+
 			
 			init();
 			initLights();
 			animate();
-
+            
+            
+            
 			function init() {
 
 				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 1000 );
@@ -208,11 +230,14 @@
 				scene.add(aluV);
 				aluS.rotation.x = -Math.PI/2;
 				aluS.position.y -= 19;
+                aluV.position.x = 360;
+                aluV.position.z =300;
 				dirPointer.position.y -= 19;
 				dirPointer.rotation.x = -Math.PI/2;
 				
-				//tree test
-				new THREE.ObjectLoader().load( 'models/tree.js', function ( object ) {
+               
+                //tree test
+				new THREE.ObjectLoader().load( 'models/commonTrunk.js', function ( object ) {
 					object.traverse( function ( o ) {
 					if ( o.type == "Mesh" && o.material && ! o.material.transparent ) {
 					o.material.side = THREE.DoubleSide;
@@ -391,7 +416,8 @@
 				sph.position.y = 100;
 				scene.add(sph);
 				*/
-				
+				 var tree1 =new TreeLoader(1,1,1,400,380);
+                scene.add(tree1);
 				
 				renderer = new THREE.WebGLRenderer();
 				renderer.setPixelRatio( window.devicePixelRatio );
@@ -402,8 +428,31 @@
 				//
 				window.addEventListener( 'mousemove', onMouseMove, false );
 				window.addEventListener( 'resize', onWindowResize, false );
+                
+                
+                /////////////////graph for position///////////////
+                var counter = 0;
+                for (var i=0;i<64;i++)
+                {
+                    matrixGrid[i] =[];
+                    for(var j=0;j<64;j++)
+                    {
+                        matrixGrid[i][j]=FirstCol[counter];
+                        if(matrixGrid[i][j] != 0)
+                        {
+                            matrixGrid[i][j]=1;     
+                        }
+                        counter++;
+                    }
+                }
+                grid = new PF.Grid(matrixGrid);
+                console.log(matrixGrid);
+                finder = new PF.AStarFinder({
+                        allowDiagonal:true}) ;
+                
+                
 
-			}
+			     }
 
 			
 			function onWindowResize() {
@@ -434,7 +483,8 @@
 				mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
 				
 			}
-			
+                
+        
 			function animate() {
 
 				//var soundEngine = new PlaySound('music/shivers.ogg', loopStart, loopDuration);
@@ -487,25 +537,38 @@
 					rotRight = false;
 				  }
 				}
+                
+                /*if(document.onclick =function(){
+                    path = finder.findPath(aluV.position.x/20, aluV.position.z/20, clickPosition.x/20, clickPosition.z/20, grid.clone());
+                    console.log(path);
+                    console.log(clickPosition);
+                    console.log(path.length);
+                
+                });*/
+                
 				//vector to hold camera position
 				var cam = new THREE.Vector3();
 				camera.getWorldDirection(cam);
 				
 				//camera moves forward, based on it rotation
-				if(wFront == true){ camera.position.z -= 6;}
-				if(wBack == true){ camera.position.z += 6;}
-				if(rotLeft == true){ camera.position.x -= 6;}
-				if(rotRight == true){ camera.position.x += 6;}
+				//if(wFront == true){ camera.position.z -= 6;}
+				//if(wBack == true){ camera.position.z += 6;}
+				//if(rotLeft == true){ camera.position.x -= 6;}
+				//if(rotRight == true){ camera.position.x += 6;}
 				//if(rotLeft == true){camera.rotation.y += 0.04;}
 				//if(rotRight == true){camera.rotation.y -= 0.04;}
 				//camera.rotation.z += 0.001;
 				
-				aluV.position.x = camera.position.x;
-				aluV.position.z = camera.position.z - 40;
+                camera.position.x =aluV.position.x;
+                camera.position.z =aluV.position.z +36;
+                aluS.position.x =aluV.position.x ;
+                aluS.position.z =aluV.position.z ;
+				//aluV.position.x = camera.position.x;
+				//aluV.position.z = camera.position.z - 40;
 				aluV.rotation.x = camera.rotation.x + 0.5;
 				
-				aluS.position.x = camera.position.x;
-				aluS.position.z = camera.position.z - 36;
+				//aluS.position.x = camera.position.x;
+				//aluS.position.z = camera.position.z - 36;
 				
 				//raycaster
 				// update the picking ray with the camera and mouse position
@@ -523,13 +586,70 @@
 				
 				dirPointer.position.x = clickPosition.x;
 				dirPointer.position.z = clickPosition.z;
+                
+                
+                
+                
+                
+                
 				
 				//leaves lookAt
 				for(var i = 0; i<100; i++)
 				{
 				leaves[i].lookAt( camera.position );
 				}
-				renderer.render( scene, camera );
+				
+                //input 
+				if(document.onclick = function()
+				{
+					executePath = true;
+					//gerar o grafo novamente
+					path = finder.findPath(aluV.position.x/20, aluV.position.z/20, clickPosition.x/20, clickPosition.z/20, grid.clone());
+					console.log(path);
+					trajPoints = 1;
+                    charVel = new THREE.Vector3( 20*path[trajPoints][0] - aluV.position.x , 0, 20*path[trajPoints][1] - aluV.position.z);
+				});
+				
+				
+				//physics clock
+				if((Date.now() - time2Physic) >= 6)
+				{
+				
+					if(executePath == true)
+					{
+						console.log("going1");	
+						if(trajPoints < path.length)
+						{   
+							console.log("going:" + trajPoints);
+							//var vel = new THREE.Vector3( 20*path[trajPoints][0] - aluV.position.x , 0, 20*path[trajPoints][1] - aluV.position.z);
+							dist =Math.sqrt(Math.pow(path[trajPoints][0]*20-aluV.position.x,2)+Math.pow(path[trajPoints][1]*20-aluV.position.z,2));
+							//////////////Define the directions///////////////////////////////
+                            //aluV.position.x < 20*path[trajPoints][0] && aluV.position.z < 20*path[trajPoints][1]
+                            if(dist > 3)
+							{
+							    console.log("going3");
+								aluV.position.x += charVel.x*0.093;
+                                aluV.position.z += charVel.z*0.093;
+							}
+							else
+							{   
+							    console.log("going4");
+								aluV.position.x = 20*path[trajPoints][0];
+								aluV.position.z = 20*path[trajPoints][1];
+								trajPoints++;
+                                charVel = new THREE.Vector3( 20*path[trajPoints][0] - aluV.position.x , 0, 20*path[trajPoints][1] - aluV.position.z);
+							}
+						}
+						else{
+							console.log("executed");
+							executePath = false;
+						}
+					}
+					
+					time2Physic = Date.now();
+				}
+                renderer.render( scene, camera );
+                
 
 				stats.end();
 			}
