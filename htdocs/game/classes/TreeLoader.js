@@ -1,22 +1,21 @@
 function TreeLoader(idTrunk,idBark,idLeaves,x,z)
 {
-    this.idTrunk =idTrunk;
-    this.idLeaves =idLeaves;
-    this.idBark =idTrunk;
-    this.x  =x;
-    this.z  =z;
-    var filePathTrunk ='models/' ;
-    var filePathBark = 'textures/'
-    var filePathLeaves ='textures/' ;
+    this.idTrunk = idTrunk;
+    this.idLeaves = idLeaves;
+    this.idBark = idTrunk;
+    this.x = x;
+    this.z = z;
+    var filePathTrunk = 'models/';
+    var filePathBark = 'textures/';
+    var filePathLeaves = 'textures/';
     var tree = new THREE.Object3D();
     
     switch(idTrunk)
     {
        case 1:
-        {
-            filePathTrunk += 'commonTrunk.js'
-
-        }
+       {
+           filePathTrunk += 'commonTrunk.js'
+       }
             
     }
     switch(idBark)
@@ -24,7 +23,6 @@ function TreeLoader(idTrunk,idBark,idLeaves,x,z)
         case 1:
         {
             filePathBark += 'treeBark1.png'
-
         }
     }
     
@@ -33,28 +31,29 @@ function TreeLoader(idTrunk,idBark,idLeaves,x,z)
         case 1:
         {
             filePathLeaves += 'leafParticles3.png'
-
         }
     }
-    console.log('test');
-    
-    
+     
     new THREE.ObjectLoader().load( filePathTrunk, function ( object ) {
         object.traverse( function ( o ) {
         if ( o.type == "Mesh" && o.material && ! o.material.transparent ) {
         o.material.side = THREE.DoubleSide;
         }
+		
         var barkTex = new THREE.TextureLoader().load( filePathBark );
         barkTex.magFilter = THREE.NearestFilter;
         barkTex.minFilter = THREE.LinearMipMapLinearFilter;
-        var material = new THREE.MeshLambertMaterial({
-         map: barkTex});
+		
+        var material = new THREE.MeshLambertMaterial({map: barkTex});
         var meshe = new THREE.Mesh(o.geometry, material);
+		
         meshe.scale.x = meshe.scale.y = meshe.scale.z = 16;
         meshe.position.y -= 50;
         meshe.position.x += x;
         meshe.position.z += z;
-        tree.add(meshe.clone());
+        
+		tree.add(meshe.clone());
+		
         } );
     } );
     

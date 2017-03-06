@@ -75,14 +75,27 @@
 			var clickPosition = new THREE.Vector3;
 			
 			//audio
+            var playing = false;
 			var audio;
 			var startTime;
 			var loopTime = 0;
 			
+			//movement
 			var executePath = false;
+			var charVel = [];
             var trajPoints = 0;
+			var dist = 0;
+			
+			//graph
+			var matrixGrid = [];
+            var grid = [];
+            var finder = [];
+            var gridBackup = [];
+            var path = [];
+			var path2 = [];
             
-            var playing = false;
+	
+			
 			var leaves = [];
 			var tileGeometries = [];
 			var tileMeshes = [];
@@ -92,25 +105,27 @@
 			var mesh, marmesh, dirPointer;
 			var wFront, wBack, rotLeft, rotRight = "false";
 			var aluV, aluS;
-            var matrixGrid =[];
-            var grid =[];
-            var finder =[];
-            var gridBackup =[];
-            var path =[];
-            var charVel= [];
-            var dist =0;
+			
+			//char anim
+			var animFrame = 0;
+			var animDirec = 0;
             
-            //clock
+			//camera
+			var zoomMultiplier = 0;
+			var oldEvent = 0;
+			
+            //clocks
             var time2Render = 0;
             var time2Physic = 0;
-
+			var time2Animat = 0;
 			
+			//program
 			init();
 			initLights();
-			animate();
+			
+			animate();//loop
             
-            
-            
+			
 			function init() {
 
 				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 1000 );
@@ -209,7 +224,8 @@
 					}
 				}*/
 				//end tile system////////////////////////////
-
+				
+				
 				//player test
 				var playerTex = new THREE.TextureLoader().load( 'textures/testAlu.png' );
 				var shadowTex = new THREE.TextureLoader().load( 'textures/shadow.png' );
@@ -262,6 +278,11 @@
 				treeShadow.scale.x = treeShadow.scale.y = 5;
 				
 				
+				//IMPORTANT, generate a single 1280x1280 plane, with 64x64 quads
+				//re-order uvs
+				//raycast to local coordinates
+				
+				
 				//tile system 2/////////////////////////////////////////////////////////////////////////////
 				
 				//tile geometry
@@ -290,7 +311,7 @@
 						var newTile = tileGeometry.clone();
 						
 						var uv = [j*0.0625,1-(i*0.0625),j*0.0625 + 0.0625,(1-(i*0.0625)) - 0.0625];
-						newTile.attributes.uv.array = new Float32Array([ uv[0],uv[1],  uv[2],uv[1],  uv[0],uv[3],  uv[2],uv[3] ] );
+						newTile.attributes.uv.array = new Float32Array([ uv[0],uv[1],  uv[2],uv[1],  uv[0],uv[3],  uv[2],uv[3] ]);
 							
 						tileGeometries[counter] =  newTile;
 						tileMeshes[counter] = new THREE.Mesh( tileGeometries[counter], tileMaterial );
@@ -298,8 +319,7 @@
 						counter++;
 					}
 				}
-				
-				
+
 				//lay down a 64x64 tiles map
 				var count = 0;
 				for(var i = 0; i < 64; i++){
@@ -328,8 +348,76 @@
 						count++;
 					}
 				}
+				
 				//tiles2Raycast.splice(23, 1);
 				//end tyle system 2///////////////////////////////////////////////////////////////////////////
+				
+				
+				
+				
+				//tile system 3/////////////////////////////
+				
+				var mapPlane = new THREE.PlaneBufferGeometry( 1280, 1280, 64, 64 ); //create a 64x64 20x20 tiles plane
+				var mapTexture = new THREE.TextureLoader().load( 'textures/grassBeach512.png' );
+				mapTexture.wrapS = mapTexture.wrapT = THREE.ClampToEdgeWrapping;
+				mapTexture.magFilter = THREE.NearestFilter;
+				mapTexture.minFilter = THREE.LinearMipMapLinearFilter;
+				
+				var mapMaterial = new THREE.MeshBasicMaterial( { map: mapTexture } );
+				
+				//set UV's according to TILED map information
+				//lay down a 64x64 tiles map
+				var count = 0;
+				var uvArray = [];
+				var tx, ty;
+				for(var i = 0; i < 65; i++){
+					
+					for(var j = 0; j < 65; j++){
+					
+						//grab tile id from map file
+						var tileID = FirstMap[count];
+						
+						tx = Math.floor((tileID-1)/16);
+						ty = (tileID-1)%16;
+						
+						//console.log("ty: " + ty + " tx: " + tx);
+						
+						//select a tile from tilesheet
+						var uv = [ty*0.0625, 1-(tx*0.0625), ty*0.0625 + 0.0625, (1-(tx*0.0625)) - 0.0625];
+
+						//uvArray.push( uv[0],uv[1],  uv[2],uv[1],  uv[0],uv[3],  uv[2],uv[3]);
+						uvArray.push( uv[0] , uv[1] );
+						//add coordinates to UV map
+						if( i%2 )
+						{
+							//uvArray.push( uv[0] , uv[3] );
+						}
+						else
+						{
+						    
+						}
+
+						count++;
+					}
+				}
+
+				mapPlane.uvsNeedUpdate = true;
+				var f32a = new Float32Array( uvArray );
+				mapPlane.attributes.uv.array = f32a;
+				var mapMesh = new THREE.Mesh( mapPlane, mapMaterial );
+				mapMesh.position.x += 630;
+				mapMesh.position.z += 630;
+				mapMesh.position.y -= 19;
+				mapMesh.rotation.x = -Math.PI/2;
+				
+				console.log(mapPlane);
+				scene.add(mapMesh);
+										
+				//end tile system 3/////////////////////////
+				
+				
+				
+				
 				
 				//tree leaves using particles
 				var leafGeo = new THREE.PlaneBufferGeometry( 20, 20 );
@@ -416,8 +504,8 @@
 				sph.position.y = 100;
 				scene.add(sph);
 				*/
-				 var tree1 =new TreeLoader(1,1,1,400,380);
-                scene.add(tree1);
+				//var tree1 =new TreeLoader(1,1,1,400,380);
+                //scene.add(tree1);
 				
 				renderer = new THREE.WebGLRenderer();
 				renderer.setPixelRatio( window.devicePixelRatio );
@@ -425,35 +513,33 @@
 				renderer.setClearColor(0x114455);
 				document.body.appendChild( renderer.domElement );
 				
-				//
+				//window listeners
+				window.addEventListener( 'wheel', onScroll, false );
 				window.addEventListener( 'mousemove', onMouseMove, false );
 				window.addEventListener( 'resize', onWindowResize, false );
+				
                 
-                
-                /////////////////graph for position///////////////
+                //graph matrix generation
                 var counter = 0;
-                for (var i=0;i<64;i++)
+                for (var i = 0; i < 64; i++)
                 {
-                    matrixGrid[i] =[];
-                    for(var j=0;j<64;j++)
+                    matrixGrid[i] = [];
+                    for(var j = 0; j < 64; j++)
                     {
-                        matrixGrid[i][j]=FirstCol[counter];
+                        matrixGrid[i][j] = FirstCol[counter];
                         if(matrixGrid[i][j] != 0)
                         {
-                            matrixGrid[i][j]=1;     
+                            matrixGrid[i][j] = 1;     
                         }
                         counter++;
                     }
                 }
+				
                 grid = new PF.Grid(matrixGrid);
-                console.log(matrixGrid);
-                finder = new PF.AStarFinder({
-                        allowDiagonal:true}) ;
-                
-                
+                //console.log(matrixGrid);
+                finder = new PF.AStarFinder({allowDiagonal:true}) ;
 
-			     }
-
+			}
 			
 			function onWindowResize() {
 
@@ -483,10 +569,30 @@
 				mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
 				
 			}
-                
+             
+			function onScroll( event )
+			{
+				if(event.deltaY != oldEvent)
+				{
+					if( event.deltaY > 0 )
+					{
+						zoomMultiplier += 0.01;
+					}
+					if( event.deltaY < 0 )
+					{
+						zoomMultiplier -= 0.01;
+					}
+					event.deltaY = oldEvent;
+				}
+			}
+			function animateSprites()
+			{
+				//verify animation state
+				//change spritesheet offsets accordingly
+			}
         
 			function animate() {
-
+				stats.begin();
 				//var soundEngine = new PlaySound('music/shivers.ogg', loopStart, loopDuration);
 				
 				//BG music
@@ -504,8 +610,7 @@
 				}
 				
 				//console.log("time: " +Date.now() / 1000);
-				
-				stats.begin();
+
 				requestAnimationFrame( animate );
 				
 				//the key events occur once, so we need to set a flag to keep the key "pressed"
@@ -559,16 +664,6 @@
 				//if(rotRight == true){camera.rotation.y -= 0.04;}
 				//camera.rotation.z += 0.001;
 				
-                camera.position.x =aluV.position.x;
-                camera.position.z =aluV.position.z +36;
-                aluS.position.x =aluV.position.x ;
-                aluS.position.z =aluV.position.z ;
-				//aluV.position.x = camera.position.x;
-				//aluV.position.z = camera.position.z - 40;
-				aluV.rotation.x = camera.rotation.x + 0.5;
-				
-				//aluS.position.x = camera.position.x;
-				//aluS.position.z = camera.position.z - 36;
 				
 				//raycaster
 				// update the picking ray with the camera and mouse position
@@ -580,23 +675,17 @@
 				
 				if ( intersects.length > 0 ) {
 
-					clickPosition = intersects[0].object.position;
-					//console.log(clickPosition);		
+					clickPosition = intersects[0].object.position;	
 				}
 				
 				dirPointer.position.x = clickPosition.x;
 				dirPointer.position.z = clickPosition.z;
                 
-                
-                
-                
-                
-                
-				
+	
 				//leaves lookAt
 				for(var i = 0; i<100; i++)
 				{
-				leaves[i].lookAt( camera.position );
+					leaves[i].lookAt( camera.position );
 				}
 				
                 //input 
@@ -604,54 +693,86 @@
 				{
 					executePath = true;
 					//gerar o grafo novamente
-					path = finder.findPath(aluV.position.x/20, aluV.position.z/20, clickPosition.x/20, clickPosition.z/20, grid.clone());
-					console.log(path);
-					trajPoints = 1;
-                    charVel = new THREE.Vector3( 20*path[trajPoints][0] - aluV.position.x , 0, 20*path[trajPoints][1] - aluV.position.z);
+					path = finder.findPath(Math.floor(aluV.position.x/20), Math.floor(aluV.position.z/20), clickPosition.x/20, clickPosition.z/20, grid.clone());
+					//console.log(path);
+					var curve = [];
+					
+					for(var i = 0; i < path.length; i++)
+					{
+						var vec = new THREE.Vector3( path[i][0], -20, path[i][1] );
+						curve.push(vec);
+					}
+					
+					var catMullCurve = new THREE.CatmullRomCurve3(curve);
+					
+					if(path.length > 0)
+					{
+					path2 = catMullCurve.getSpacedPoints(path.length*2);
+					}
+					
+					trajPoints = 3;
+					
+					charVel = new THREE.Vector3( ((20*path2[trajPoints].x) - aluV.position.x) , 0, ((20*path2[trajPoints].z) - aluV.position.z)).normalize();
+                    //charVel = new THREE.Vector3( 20*path[trajPoints][0] - aluV.position.x , 0, 20*path[trajPoints][1] - aluV.position.z).normalize();
 				});
 				
 				
 				//physics clock
-				if((Date.now() - time2Physic) >= 6)
+				if((Date.now() - time2Physic) >= 20) 
 				{
-				
 					if(executePath == true)
 					{
-						console.log("going1");	
-						if(trajPoints < path.length)
+
+						if(trajPoints < path2.length)
 						{   
-							console.log("going:" + trajPoints);
-							//var vel = new THREE.Vector3( 20*path[trajPoints][0] - aluV.position.x , 0, 20*path[trajPoints][1] - aluV.position.z);
-							dist =Math.sqrt(Math.pow(path[trajPoints][0]*20-aluV.position.x,2)+Math.pow(path[trajPoints][1]*20-aluV.position.z,2));
-							//////////////Define the directions///////////////////////////////
-                            //aluV.position.x < 20*path[trajPoints][0] && aluV.position.z < 20*path[trajPoints][1]
-                            if(dist > 3)
+
+							dist = Math.sqrt( Math.pow(path2[trajPoints].x*20-aluV.position.x, 2) + Math.pow(path2[trajPoints].z*20 - aluV.position.z, 2));
+
+                            if(dist > 3.3)
 							{
-							    console.log("going3");
-								aluV.position.x += charVel.x*0.093;
-                                aluV.position.z += charVel.z*0.093;
+								aluV.position.x += charVel.x*3;
+                                aluV.position.z += charVel.z*3;
 							}
 							else
 							{   
-							    console.log("going4");
-								aluV.position.x = 20*path[trajPoints][0];
-								aluV.position.z = 20*path[trajPoints][1];
+								aluV.position.x = 20*path2[trajPoints].x;
+								aluV.position.z = 20*path2[trajPoints].z;
 								trajPoints++;
-                                charVel = new THREE.Vector3( 20*path[trajPoints][0] - aluV.position.x , 0, 20*path[trajPoints][1] - aluV.position.z);
+								try {
+                                charVel = new THREE.Vector3( (20*path2[trajPoints].x) - aluV.position.x , 0, (20*path2[trajPoints].z) - aluV.position.z).normalize();
+								}
+								catch(e)
+								{}
 							}
 						}
 						else{
-							console.log("executed");
 							executePath = false;
 						}
 					}
 					
+					camera.rotation.x = -1.15 + zoomMultiplier;
+					camera.position.x = aluV.position.x;
+					camera.position.z = aluV.position.z +56 + zoomMultiplier*100;
+					camera.position.y = zoomMultiplier*100 + 100;
+					aluS.position.x = aluV.position.x ;
+					aluS.position.z = aluV.position.z ;
+					//aluV.position.x = camera.position.x;
+					//aluV.position.z = camera.position.z - 40;
+					aluV.rotation.x = camera.rotation.x + 0.4;
+					
 					time2Physic = Date.now();
+					
+					if(Date.now() - time2Animat > 200)
+					{
+						animateSprites();
+					}
+					
 				}
+				
+				
                 renderer.render( scene, camera );
-                
-
 				stats.end();
+				
 			}
 
 		</script>
