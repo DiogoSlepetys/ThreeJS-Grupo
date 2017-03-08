@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webgl - geometry - cube</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				margin: 0px;
+				background-color: #777779;
+				overflow: hidden;
+			}
+		</style>
+
+		<!--Shaders Declaration-->
+		<script type="x-shader/x-vertex" id="vertexshader">
+			attribute float size;
+			attribute vec3 customColor;
+			varying vec3 vColor;
+			void main() {
+				vColor = customColor;
+				vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+				gl_PointSize = size * ( 300.0 / -mvPosition.z );
+				gl_Position = projectionMatrix * mvPosition;
+			}
+		</script>
+
+		<script type="x-shader/x-fragment" id="fragmentshader">
+			uniform vec3 color;
+			uniform sampler2D texture;
+			varying vec3 vColor;
+			void main() {
+				gl_FragColor = vec4( color * vColor, 1.0 );
+				gl_FragColor = gl_FragColor * texture2D( texture, gl_PointCoord );
+			}
+		</script> 
+		
+		
+	</head>
+	<body>
+		<div style="position: fixed; bottom: 5%; left: 0px; width: 100%; height: 10%; margin: 5px auto; overflow: hidden;">
+			<div id="inventory" style="position: absolute; left: 25%; width: 50%; height: 100%; min-width: 200px; min-height: 50px; overflow: hidden; display: block; border: 1px solid black; background-color: white;">
+				<p id="textelement" style="text-align: center;">I am a text element <button name="ALERT!" onclick='alert("Você foi alertado.")'>ALERT!</button></p>
+			</div>
+		</div>
+		
+        <!--Tree Loader class-->
+        <script src="classes/TreeLoader.js"></script>
+        
+        <!--A* Graph-->
+		<script src="../build/pathfinding-browser.min.js"></script>
+		
+        <!--ThreeJS library-->
+		<script src="../build/three.js"></script>
+		
+		<!--FPS monitor-->
+		<script src="../build/stats.js"></script>
+		
+		<!--Map Tiles Document-->
+		<script src="maps/Grass1.js"></script>
+		
+		<script>
+			
+			//IMPORTANT note for future releases:
+			//consider using BufferGeometry objects to improve rendering performance (https://threejs.org/docs/api/core/BufferGeometry.html)
+			//read documentations!
+			
+			//the fps meter
+			var stats = new Stats();
+			stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+			document.body.appendChild( stats.dom );
+			
+			//the raycasting variables
+			var raycaster = new THREE.Raycaster();
+			var mouse = new THREE.Vector2();
+			var clickPosition = new THREE.Vector3;
+			
+			//audio
+            var playing = false;
+			var audio;
+			var startTime;
+			var loopTime = 0;
+			
+			//movement
+			var executePath = false;
+			var charVel = [];
+            var trajPoints = 0;
+			var dist = 0;
+			
+			//graph
+			var matrixGrid = [];
+            var grid = [];
+            var finder = [];
+            var gridBackup = [];
+            var path = [];
+			var path2 = [];
+            
+			//fairy light
+			var fLight;
+			
+			var leaves = [];
+			var tileGeometries = [];
+			var tileMeshes = [];
+			var tiles2Raycast = [];
+			var textures = [];
+			var camera, scene, renderer;
+			var mesh, marmesh, dirPointer, mapMesh;
+			var wFront, wBack, rotLeft, rotRight = "false";
+			var aluV, aluS;
+			
+			//char anim
+			var animFrame = 0;
+			var animDirec = 0;
+            
+			//camera
+			var zoomMultiplier = 0;
+			var oldEvent = 0;
+			
+            //clocks
+            var time2Render = 0;
+            var time2Physic = 0;
+			var time2Animat = 0;
+			
+			//program
+			init();
+			initLights();
+			
+			animate();//loop
+            
+			
+			function init() {
+
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 1000 );
+				camera.position.z = 400;
+				camera.position.y = 100;
+				camera.rotation.x = -1.15;
+
+				scene = new THREE.Scene();
+
+				/*
+				//there are 3 ways of loading an object to scene:
+				
+				//first: we are loading a texture followed by a three.js cube 
+				var texture = new THREE.TextureLoader().load( 'textures/siteMoon.png' );
+
+				var geometry = new THREE.BoxBufferGeometry( 20, 20, 20 );
+				var material = new THREE.MeshBasicMaterial( { map: texture } );
+
+				for(var i = 0; i < 20; i++){
+				mesh = new THREE.Mesh( geometry, material );
+				mesh.position.x += 20*i;
+				scene.add( mesh );
+				}
+				/*
+				var texturex = new THREE.TextureLoader().load( 'textures/grassFloor2.png' );
+				var materialx = new THREE.MeshBasicMaterial( { map: texturex } );
+				mesho = new THREE.Mesh( geometry, materialx );
+				
+				mesho.scale.x = mesho.scale.z = 200;
+				mesho.position.y -= 60;
+				scene.add(mesho);
+				*/
+				
+				//tile system////////////////////////////
+				/*
+				new THREE.ObjectLoader().load( 'models/tile.js', function ( object ) {
+					object.traverse( function ( o ) {
+					tileGeometry = o.geometry
+					var meshq = new THREE.Mesh(tileGeometry);
+					meshq.scale.x = meshq.scale.y = meshq.scale.z = 20;
+					meshq.position.y -= 20;
+					scene.add( meshq );
+					} );
+				} );*/
+				/*
+				var tileModel = new THREE.JSONLoader().load('models/tile.js',
+				function ( geometry, mat )
+				{
+					var meshq = new THREE.Mesh(geometry, mat);
+					meshq.scale.x = meshq.scale.y = meshq.scale.z = 20;
+					meshq.position.y -= 20;
+					scene.add( meshq );
+				};*/	
+				/*
+				var tileSheet = new THREE.TextureLoader().load( 'textures/grassBeach512.png' );
+				//let's make tiles match perfectly
+				tileSheet.wrapS = tileSheet.wrapT = THREE.ClampToEdgeWrapping;
+				tileSheet.magFilter = THREE.NearestFilter;
+				tileSheet.minFilter = THREE.LinearMipMapLinearFilter;
+				
+				var tileGeom = new THREE.BoxBufferGeometry( 1, 0, 1 );
+				//setting our tilesheet
+				
+				//as tilesheets MUST be power of two images, and we are using 515x512 tilesheets with 16x16 (32px)tiles
+				//we need to "zoom" the texture by 1/16 = 0.0625
+				tileSheet.repeat.set( 0.0625, 0.0625);
+				
+				var col = 0;
+				//lay down a 64x64 tiles map
+				for(var i = 0; i < 63; i++){
+					
+					for(var j = 0; j < 63; j++){
+						
+						//every offset represents a tile from our tilesheet, with 0.0x and 0.8750y representing the top left tile
+						tile = FirstMap[col];
+						document.getElementById("textelement").innerHTML = bau;
+						tilex = tile/16;
+						tiley = tile%16;
+						
+						tileSheet.offset.x = tilex*0.0625; //from 0.9375 to 0 by 0.0625 steps
+						tileSheet.offset.y = 1 - tiley*0.0625;
+
+						//tileSheet.offset.x = 0.0; //from 0.9375 to 0 by 0.0625 steps
+						//tileSheet.offset.y = 0.9375;
+						
+						tileMaterial[col] = new THREE.MeshBasicMaterial( { map: tileSheet } );
+						
+						var tiles = new THREE.Mesh( tileGeom, tileMaterial[col] );
+						tiles.scale.x = tiles.scale.y = tiles.scale.z = 20;
+						tiles.position.x += 20*i; tiles.position.z += 20*j;
+						tiles.position.y = -20;
+						
+						scene.add( tiles.clone() );
+						
+						col++;
+					}
+				}*/
+				//end tile system////////////////////////////
+				
+				
+				//player test
+				var playerTex = new THREE.TextureLoader().load( 'textures/testAlu.png' );
+				var shadowTex = new THREE.TextureLoader().load( 'textures/shadow.png' );
+				var pointrTex = new THREE.TextureLoader().load( 'textures/pointer.png' );
+				pointrTex.magFilter = THREE.NearestFilter;
+				pointrTex.minFilter = THREE.LinearMipMapLinearFilter;
+				playerTex.magFilter = THREE.NearestFilter;
+				playerTex.minFilter = THREE.LinearMipMapLinearFilter;
+				var playerMat = new THREE.MeshBasicMaterial( { map: playerTex, transparent: true, opacity: 1 } );
+				var shadowMat = new THREE.MeshBasicMaterial( { map: shadowTex, transparent: true, opacity: 0.5 ,depthWrite: false } );
+				var pointrMat = new THREE.MeshBasicMaterial( { map: pointrTex, transparent: true, opacity: 1 , depthWrite: false } );
+				var playerGeometry = new THREE.PlaneBufferGeometry( 20, 30 );
+				var pointrGeometry = new THREE.PlaneBufferGeometry( 20, 20 );
+				var shadowGeometry = new THREE.PlaneBufferGeometry( 16, 16 );
+				aluV = new THREE.Mesh( playerGeometry, playerMat );
+				aluS = new THREE.Mesh( shadowGeometry, shadowMat );
+				dirPointer = new THREE.Mesh( pointrGeometry, pointrMat );
+				scene.add(dirPointer);
+				scene.add(aluS);
+				scene.add(aluV);
+				aluS.rotation.x = -Math.PI/2;
+				aluS.position.y -= 19;
+                aluV.position.x = 360;
+                aluV.position.z =300;
+				aluV.position.y = -5;
+				dirPointer.position.y -= 19;
+				dirPointer.rotation.x = -Math.PI/2;
+				
+               
+                //tree test
+				new THREE.ObjectLoader().load( 'models/commonTrunk.js', function ( object ) {
+					object.traverse( function ( o ) {
+					if ( o.type == "Mesh" && o.material && ! o.material.transparent ) {
+					o.material.side = THREE.DoubleSide;
+					}
+					var barkTex = new THREE.TextureLoader().load( 'textures/treeBark1.png' );
+					var barkTex2 = new THREE.TextureLoader().load( 'textures/treeBark2.png' );
+					barkTex.magFilter = THREE.NearestFilter;
+					barkTex.minFilter = THREE.LinearMipMapLinearFilter;
+					var material = new THREE.MeshLambertMaterial({
+                     map: barkTex});
+					material.normalMap = barkTex2;
+					var meshe = new THREE.Mesh(o.geometry, material);
+					meshe.scale.x = meshe.scale.y = meshe.scale.z = 16;
+					meshe.position.y -= 50;
+					meshe.position.x += 400;
+					meshe.position.z += 200;
+					scene.add( meshe );
+					} );
+				} );
+				var treeShadow = aluS.clone();
+				scene.add(treeShadow);
+				treeShadow.position.x = 400;
+				treeShadow.position.z = 200;
+				treeShadow.scale.x = treeShadow.scale.y = 5;
+				
+			
+				
+				
+				//IMPORTANT, generate a single 1280x1280 plane, with 64x64 quads
+				//re-order uvs
+				//raycast to local coordinates
+				
+				
+				//tile system 2/////////////////////////////////////////////////////////////////////////////
+				/*
+				//tile geometry
+				var tileGeometry = new THREE.PlaneBufferGeometry( 20, 20 );
+				
+				//tilesheet texture
+				var tileSheet = new THREE.TextureLoader().load( 'textures/grassBeach512.png' );
+				//let's make tiles match perfectly using clamp wrapping and look crispy sharp with filtering!
+				tileSheet.wrapS = tileSheet.wrapT = THREE.ClampToEdgeWrapping;
+				tileSheet.magFilter = THREE.NearestFilter;
+				tileSheet.minFilter = THREE.LinearMipMapLinearFilter;
+				
+				//tile flat/basic material from texture
+				var tileMaterial = new THREE.MeshBasicMaterial( { map: tileSheet } );
+				
+				//this loop will create a tile mesh array, using a single material and geometry clones
+				//1- clone geometry elements to buffer
+				//2- set their UV coordinates to match every single tile
+				//3- create new meshes from the clones
+				//4- save those meshes to buffer, so we can draw them later
+				var counter = 1;
+				for(var i = 0; i < 16; i++){
+					
+					for(var j = 0; j < 16; j++){
+						
+						var newTile = tileGeometry.clone();
+						
+						var uv = [j*0.0625,1-(i*0.0625),j*0.0625 + 0.0625,(1-(i*0.0625)) - 0.0625];
+						newTile.attributes.uv.array = new Float32Array([ uv[0],uv[1],  uv[2],uv[1],  uv[0],uv[3],  uv[2],uv[3] ]);
+							
+						tileGeometries[counter] =  newTile;
+						tileMeshes[counter] = new THREE.Mesh( tileGeometries[counter], tileMaterial );
+						
+						counter++;
+					}
+				}
+
+				//lay down a 64x64 tiles map
+				var count = 0;
+				for(var i = 0; i < 64; i++){
+					
+					for(var j = 0; j < 64; j++){
+					
+						//grab tile id from map file
+						var tileID = FirstMap[count];
+						
+						//clone from buffer
+						var myTile = tileMeshes[tileID].clone();
+						
+						//adjust global position
+						myTile.rotation.x = -Math.PI/2;
+						myTile.position.x = 20*j;
+						myTile.position.z = 20*i;
+						myTile.position.y -= 20;
+						
+						if(FirstCol[count] != 257)
+						{
+							tiles2Raycast.push(myTile);
+						}
+						
+						scene.add(myTile);
+
+						count++;
+					}
+				}
+				
+				//tiles2Raycast.splice(23, 1);*/
+				//end tyle system 2///////////////////////////////////////////////////////////////////////////
+				
+				
+				
+				
+				//tile system 3/////////////////////////////
+				
+				var mapPlane = new THREE.BufferGeometry();
+				
+				var mapNormalMap = new THREE.TextureLoader().load( 'textures/grassBeach512.png' );
+				mapNormalMap.wrapS = mapNormalMap.wrapT = THREE.ClampToEdgeWrapping;
+				mapNormalMap.magFilter = THREE.NearestFilter;
+				mapNormalMap.minFilter = THREE.LinearMipMapLinearFilter;
+				
+				var mapTexture = new THREE.TextureLoader().load( 'textures/grassBeach512.png' );
+				mapTexture.wrapS = mapTexture.wrapT = THREE.ClampToEdgeWrapping;
+				mapTexture.magFilter = THREE.NearestFilter;
+				mapTexture.minFilter = THREE.LinearMipMapLinearFilter;
+				
+				var mapMaterial = new THREE.MeshPhongMaterial( { map: mapTexture } );
+				
+				
+				//set UV's according to TILED map information
+				//lay down a 64x64 tiles map
+				var count = 0;
+				var normArray = [];
+				var xyzArray = [];
+				var uvArray = [];
+				var tx, ty;
+				for(var i = 0; i < 64; i++){
+					
+					for(var j = 0; j < 64; j++){
+					
+						//grab tile id from map file
+						var tileID = FirstMap[count];
+						
+						tx = Math.floor((tileID-1)/16);
+						ty = (tileID-1)%16;
+						
+						//console.log("ty: " + ty + " tx: " + tx);
+						
+						var xz = [[20*j, 20*i], [20*j+20, 20*i+20]];
+						//select a tile from tilesheet
+						var uv = [[ty*0.0625, 1-(tx*0.0625)], [ty*0.0625 + 0.0625, (1-(tx*0.0625)) - 0.0625]];
+						
+						//var uvList1 = [new THREE.Vector2(uv[0],uv[1]), new THREE.Vector2(uv[2],uv[1]), new THREE.Vector2(uv[0],uv[3])];
+						//var uvList2 = [new THREE.Vector2(uv[0],uv[3]), new THREE.Vector2(uv[2],uv[3]), new THREE.Vector2(uv[2],uv[1])];
+						xyzArray.push(xz[0][0], 0, xz[0][1], xz[0][0], 0, xz[1][1], xz[1][0], 0, xz[0][1]);
+						xyzArray.push(xz[0][0], 0, xz[1][1], xz[1][0], 0, xz[1][1], xz[1][0], 0, xz[0][1]);
+						uvArray.push(uv[0][0], uv[0][1], uv[0][0], uv[1][1], uv[1][0], uv[0][1]);
+						uvArray.push(uv[0][0], uv[1][1], uv[1][0], uv[1][1], uv[1][0], uv[0][1]);
+						
+						count++;
+					}
+				}
+
+				//mapPlane.uvsNeedUpdate = true;
+				var f32pos = new Float32Array(xyzArray);
+				var posBuffer = new THREE.BufferAttribute(f32pos, 3);
+				var f32uv = new Float32Array( uvArray );
+				var uvBuffer = new THREE.BufferAttribute(f32uv, 2);
+
+				mapPlane.addAttribute("position", posBuffer);
+				mapPlane.addAttribute("uv", uvBuffer);
+				mapMesh = new THREE.Mesh( mapPlane, mapMaterial );
+				mapMesh.position.x -= 10;
+				mapMesh.position.z -= 10;
+				mapMesh.position.y -= 20;
+				//mapMesh.rotation.x = -Math.PI/2;
+				
+				console.log(mapPlane);
+				scene.add(mapMesh);
+				
+				mapMesh.material.normalMap = mapNormalMap;
+										
+				//end tile system 3/////////////////////////
+				
+				
+				
+				
+				
+				//tree leaves using particles
+				var leafGeo = new THREE.PlaneBufferGeometry( 20, 20 );
+				var leafTex = new THREE.TextureLoader().load( 'textures/leafParticle3.png' );
+				leafTex.magFilter = THREE.NearestFilter;
+				leafTex.minFilter = THREE.LinearMipMapLinearFilter;
+				var leafMat = new THREE.MeshPhongMaterial( { map: leafTex, transparent: true, opacity: 1, depthWrite: false } );
+				var leafMes = new THREE.Mesh( leafGeo, leafMat );
+				
+				for(var i = 0; i < 100; i++)
+				{
+					leafMes.position.x = 355 + Math.random()* 80;
+					leafMes.position.z = 175 + Math.random()* 70;
+					leafMes.position.y = 30 + Math.random()* 50;
+					leafMes.scale.x = leafMes.scale.z = leafMes.scale.y = 0.2 + Math.random() * 0.8;
+					leaves[i] = leafMes.clone();
+					scene.add(leaves[i]);
+				}
+				/*
+				//second: we are using JSON files to load our objects, with materials and textures
+				//those files can be generated by using the three.js blender plugin
+				var loader = new THREE.JSONLoader();
+				loader.load('models/marmel.json', function(geometry, materials) {
+				mesh = new THREE.Mesh(geometry, new THREE.MeshFaceMaterial(materials));
+				mesh.position.x -= 200;
+				mesh.scale.x = mesh.scale.y = mesh.scale.z = 10;
+				mesh.translation = THREE.GeometryUtils.center(geometry);
+				scene.add(mesh);
+				});
+				
+				//third: we are using javascript files and loading a texture afterwards
+				//because the plugin used in blender is new and cannot save textures
+				new THREE.ObjectLoader().load( 'models/bau.js', function ( object ) {
+					object.traverse( function ( o ) {
+					if ( o.type == "Mesh" && o.material && ! o.material.transparent ) {
+					o.material.side = THREE.DoubleSide;
+					}
+					var material = new THREE.MeshLambertMaterial({
+                     map: THREE.ImageUtils.loadTexture('textures/LOWBAU2.png')});
+					var meshe = new THREE.Mesh(o.geometry, material);
+					meshe.scale.x = meshe.scale.y = meshe.scale.z = 20;
+					meshe.position.y -= 50;
+					meshe.position.x -= 50;
+					scene.add( meshe );
+					} );
+				} );
+				
+				//now, let's add shaders to our materials, they are crucial for achieving nice fx
+				//creating a shader material:
+				
+				var lmaterial = new THREE.ShaderMaterial( {
+
+					vertexShader: document.getElementById( 'vertexShader' ).textContent,
+					fragmentShader: document.getElementById( 'fragmentShader' ).textContent
+
+				} );
+				*/
+				/*
+				//let's try a physical shader
+				var reflectionCube = new THREE.CubeTextureLoader()
+					.setPath( 'textures/' )
+					.load( [ 'sky.png', 'sky.png', 'sky.png', 'sky.png', 'sky.png', 'sky.png' ] );
+				scene.background = reflectionCube;
+
+				
+				var col =  new THREE.Color("rgb(0, 200, 255)");
+				
+				var physMaterial = new THREE.MeshPhysicalMaterial( {
+					color: col,
+					metalness: 0.5,
+					roughness: 0.0,
+					clearCoat:  1.0,
+					clearCoatRoughness: 1.0,
+					reflectivity: 0.9,
+					envMap: reflectionCube
+				} );
+				
+				//create a sphere to recieve le shading
+				
+				var ageometry = new THREE.SphereGeometry(3, 50, 50, 0, Math.PI * 2, 0, Math.PI * 2);
+				var smaterial = new THREE.MeshNormalMaterial();
+				var sph = new THREE.Mesh(ageometry, physMaterial);
+				sph.scale.x = sph.scale.y = sph.scale.z = 20;
+				sph.position.y = 100;
+				scene.add(sph);
+				*/
+				//var tree1 =new TreeLoader(1,1,1,400,380);
+                //scene.add(tree1);
+				
+				renderer = new THREE.WebGLRenderer();
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.setClearColor(0x114455);
+				document.body.appendChild( renderer.domElement );
+				
+				//window listeners
+				window.addEventListener( 'wheel', onScroll, false );
+				window.addEventListener( 'mousemove', onMouseMove, false );
+				window.addEventListener( 'resize', onWindowResize, false );
+				
+                
+                //graph matrix generation
+                var counter = 0;
+                for (var i = 0; i < 64; i++)
+                {
+                    matrixGrid[i] = [];
+                    for(var j = 0; j < 64; j++)
+                    {
+                        matrixGrid[i][j] = FirstCol[counter];
+                        if(matrixGrid[i][j] != 0)
+                        {
+                            matrixGrid[i][j] = 1;     
+                        }
+                        counter++;
+                    }
+                }
+				
+                grid = new PF.Grid(matrixGrid);
+                //console.log(matrixGrid);
+                finder = new PF.AStarFinder({allowDiagonal:true}) ;
+
+			}
+			
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+			
+			//sets a global light with color = white
+			function initLights() {
+				var globalLight = new THREE.AmbientLight(0xaaaabb, 0.4);
+				scene.add(globalLight);
+				
+				fLight = new THREE.PointLight( 0xffffff, 10, 500, 4);
+				fLight.position.set( 50, 500, 20 );
+				scene.add( fLight );
+				
+			}
+			
+			//function to deal with mouse inputs
+			function onMouseMove( event ) {
+
+				event.preventDefault();
+				// calculate mouse position in normalized device coordinates
+				// (-1 to +1) for both components
+				mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+				mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+				
+			}
+             
+			function onScroll( event )
+			{
+				if(event.deltaY != oldEvent)
+				{
+					if( event.deltaY > 0 )
+					{
+						zoomMultiplier += 0.087;
+					}
+					if( event.deltaY < 0 )
+					{
+						zoomMultiplier -= 0.087;
+					}
+					event.deltaY = oldEvent;
+				}
+			}
+			function animateSprites()
+			{
+				//verify animation state
+				//change spritesheet offsets accordingly
+			}
+        
+			function animate() {
+				stats.begin();
+				//var soundEngine = new PlaySound('music/shivers.ogg', loopStart, loopDuration);
+				
+				//BG music
+				if(playing == false)
+				{
+					audio = new Audio('music/shivers.ogg');
+					
+					audio.addEventListener('ended', function() {
+					this.currentTime = 7;
+					this.play();
+					}, false);
+					
+					audio.play();
+					playing = true;
+				}
+				
+				//console.log("time: " +Date.now() / 1000);
+
+				requestAnimationFrame( animate );
+				
+				//the key events occur once, so we need to set a flag to keep the key "pressed"
+				document.onkeydown = function(e) {
+				  if(e.keyCode == 38) {
+					wFront = true;
+				  }
+				  if(e.keyCode == 40) {
+					wBack = true;
+				  }
+				  if(e.keyCode == 37) {
+					rotLeft = true;
+				  }
+				  if(e.keyCode == 39) {
+					rotRight = true;
+				  }
+				}
+				document.onkeyup = function(e) {
+				  if(e.keyCode == 38) {
+					wFront = false;
+				  }
+				  if(e.keyCode == 40) {
+					wBack = false;
+				  }
+				  if(e.keyCode == 37) {
+					rotLeft = false;
+				  }
+				  if(e.keyCode == 39) {
+					rotRight = false;
+				  }
+				}
+                
+                /*if(document.onclick =function(){
+                    path = finder.findPath(aluV.position.x/20, aluV.position.z/20, clickPosition.x/20, clickPosition.z/20, grid.clone());
+                    console.log(path);
+                    console.log(clickPosition);
+                    console.log(path.length);
+                
+                });*/
+                
+				//vector to hold camera position
+				var cam = new THREE.Vector3();
+				camera.getWorldDirection(cam);
+				
+				//camera moves forward, based on it rotation
+				//if(wFront == true){ camera.position.z -= 6;}
+				//if(wBack == true){ camera.position.z += 6;}
+				//if(rotLeft == true){ camera.position.x -= 6;}
+				//if(rotRight == true){ camera.position.x += 6;}
+				//if(rotLeft == true){camera.rotation.y += 0.04;}
+				//if(rotRight == true){camera.rotation.y -= 0.04;}
+				//camera.rotation.z += 0.001;
+				
+				
+				//raycaster
+				// update the picking ray with the camera and mouse position
+				raycaster.setFromCamera( mouse, camera );
+
+				// calculate objects intersecting the picking ray
+				//we must save tiles and npcs to a list, so they will be the only raycasted elements!!!
+				var intersects = raycaster.intersectObjects( [mapMesh] );
+				
+				if ( intersects.length > 0 ) {
+
+					if(intersects[0].object == mapMesh){
+						clickPosition = intersects[0].point;	
+						//console.log(clickPosition);
+					}
+				}
+				
+				if( FirstCol[Math.floor((clickPosition.x+10)/20) + 64*Math.floor((clickPosition.z+10)/20)] == 0 ){
+					dirPointer.position.x = clickPosition.x;
+					dirPointer.position.z = clickPosition.z;
+                }
+
+				//leaves lookAt
+				for(var i = 0; i<100; i++)
+				{
+					leaves[i].lookAt( new THREE.Vector3( leaves[i].position.x , camera.position.y, camera.position.z ) );
+				}
+				
+                //input 
+				//TODO paradinha no lugar dela :D
+				document.onclick = function()
+				{
+					executePath = true;
+					//gerar o grafo novamente
+					path = finder.findPath(Math.floor(aluV.position.x/20), Math.floor(aluV.position.z/20), Math.floor((dirPointer.position.x+10)/20), Math.floor((dirPointer.position.z+10)/20), grid.clone());
+					//console.log(path);
+					var curve = [];
+					
+					for(var i = 0; i < path.length; i++)
+					{
+						var vec = new THREE.Vector3( path[i][0], -20, path[i][1] );
+						curve.push(vec);
+					}
+					
+					var catMullCurve = new THREE.CatmullRomCurve3(curve);
+					
+					if(path.length > 0)
+					{
+						path2 = catMullCurve.getSpacedPoints(path.length*2);
+					}
+					
+					trajPoints = 2;
+					
+					charVel = new THREE.Vector3( ((20*path2[trajPoints].x) - aluV.position.x) , 0, ((20*path2[trajPoints].z) - aluV.position.z)).normalize();
+                    //charVel = new THREE.Vector3( 20*path[trajPoints][0] - aluV.position.x , 0, 20*path[trajPoints][1] - aluV.position.z).normalize();
+				};
+				
+				document.getElementById("inventory").onclick = function(event) { event.stopPropagation() }
+				
+				//physics clock
+				if((Date.now() - time2Physic) >= 10) 
+				{
+					if(executePath == true)
+					{
+
+						if(trajPoints < path2.length)
+						{   
+
+							dist = Math.sqrt( Math.pow(path2[trajPoints].x*20-aluV.position.x, 2) + Math.pow(path2[trajPoints].z*20 - aluV.position.z, 2));
+
+                            if(dist > 3.3)
+							{
+								aluV.position.x += charVel.x*3;
+                                aluV.position.z += charVel.z*3;
+							}
+							else
+							{   
+								aluV.position.x = 20*path2[trajPoints].x;
+								aluV.position.z = 20*path2[trajPoints].z;
+								trajPoints++;
+								try {
+                                charVel = new THREE.Vector3( (20*path2[trajPoints].x) - aluV.position.x , 0, (20*path2[trajPoints].z) - aluV.position.z).normalize();
+								}
+								catch(e)
+								{}
+							}
+						}
+						else{
+							executePath = false;
+						}
+					}
+					
+					var angle = zoomMultiplier;
+					if (angle > (75.0 * Math.PI / 180.0)) angle = (75.0 * Math.PI / 180.0);
+					if (angle < (20.0 * Math.PI / 180.0)) angle = (20.0 * Math.PI / 180.0);
+					
+					camera.position.x = aluV.position.x;
+					camera.position.z = aluV.position.z + 100*(2-zoomMultiplier)*Math.sin(angle);
+					camera.position.y = 100*(2-zoomMultiplier)*Math.cos(angle);
+
+					camera.rotation.x = Math.atan2(aluV.position.y-camera.position.y, -aluV.position.z+camera.position.z); //    -1.15 + zoomMultiplier;
+
+					aluS.position.x = aluV.position.x ;
+					aluS.position.z = aluV.position.z ;
+					//aluV.position.x = camera.position.x;
+					//aluV.position.z = camera.position.z - 40;
+					aluV.rotation.x = camera.rotation.x + 0.4;
+					
+					//move fairy
+					fLight.position.set( aluV.position );
+					
+					time2Physic = Date.now();
+					
+					if(Date.now() - time2Animat > 200)
+					{
+						animateSprites();
+					}
+					
+				}
+				
+				
+                renderer.render( scene, camera );
+				stats.end();
+				
+			}
+
+		</script>
+
+	</body>
+	
+</html>
