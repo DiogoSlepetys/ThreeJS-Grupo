@@ -44,6 +44,8 @@
 			</div>
 		</div>
 		
+		
+		
         <!--Tree Loader class-->
         <script src="classes/TreeLoader.js"></script>
         
@@ -120,6 +122,9 @@
             var time2Render = 0;
             var time2Physic = 0;
 			var time2Animat = 0;
+			
+			//sun direction
+			var addSun = 0;
 			
 			//program
 			init();
@@ -237,7 +242,7 @@
 				playerTex.magFilter = THREE.NearestFilter;
 				playerTex.minFilter = THREE.LinearMipMapLinearFilter;
 				var playerMat = new THREE.MeshBasicMaterial( { map: playerTex, transparent: true, opacity: 1 } );
-				var shadowMat = new THREE.MeshBasicMaterial( { map: shadowTex, transparent: true, opacity: 0.5 ,depthWrite: false } );
+				var shadowMat = new THREE.MeshBasicMaterial( { map: shadowTex, transparent: true, opacity: 0.5 ,depthWrite: false, color: 0x000000 } );
 				var pointrMat = new THREE.MeshBasicMaterial( { map: pointrTex, transparent: true, opacity: 1 , depthWrite: false } );
 				var playerGeometry = new THREE.PlaneBufferGeometry( 20, 30 );
 				var pointrGeometry = new THREE.PlaneBufferGeometry( 20, 20 );
@@ -368,7 +373,7 @@
 				
 				var mapPlane = new THREE.BufferGeometry();
 				
-				var mapNormalMap = new THREE.TextureLoader().load( 'textures/grassBeach512.png' );
+				var mapNormalMap = new THREE.TextureLoader().load( 'textures/NormalMap.png' );
 				mapNormalMap.wrapS = mapNormalMap.wrapT = THREE.ClampToEdgeWrapping;
 				mapNormalMap.magFilter = THREE.NearestFilter;
 				mapNormalMap.minFilter = THREE.LinearMipMapLinearFilter;
@@ -378,7 +383,7 @@
 				mapTexture.magFilter = THREE.NearestFilter;
 				mapTexture.minFilter = THREE.LinearMipMapLinearFilter;
 				
-				var mapMaterial = new THREE.MeshPhongMaterial( { map: mapTexture } );
+				var mapMaterial = new THREE.MeshPhongMaterial( { map: mapTexture, shininess: 1 } );
 				
 				
 				//set UV's according to TILED map information
@@ -387,6 +392,7 @@
 				var normArray = [];
 				var xyzArray = [];
 				var uvArray = [];
+				var idxArray = [];
 				var tx, ty;
 				for(var i = 0; i < 64; i++){
 					
@@ -411,6 +417,11 @@
 						uvArray.push(uv[0][0], uv[0][1], uv[0][0], uv[1][1], uv[1][0], uv[0][1]);
 						uvArray.push(uv[0][0], uv[1][1], uv[1][0], uv[1][1], uv[1][0], uv[0][1]);
 						
+						normArray.push(0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0);
+						//normArray.push(0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1);
+						//idxArray.push(count);
+						
+						
 						count++;
 					}
 				}
@@ -420,9 +431,15 @@
 				var posBuffer = new THREE.BufferAttribute(f32pos, 3);
 				var f32uv = new Float32Array( uvArray );
 				var uvBuffer = new THREE.BufferAttribute(f32uv, 2);
+				var f32norm = new Float32Array( normArray );
+				var normBuffer = new THREE.BufferAttribute(f32norm, 3);
+				//var f32idx = new Float32Array( idxArray );
+				//var idxBuffer = new THREE.BufferAttribute(f32idx, 1);
 
 				mapPlane.addAttribute("position", posBuffer);
+				mapPlane.addAttribute("normal", normBuffer);
 				mapPlane.addAttribute("uv", uvBuffer);
+				//mapPlane.addAttribute("index", idxBuffer);
 				mapMesh = new THREE.Mesh( mapPlane, mapMaterial );
 				mapMesh.position.x -= 10;
 				mapMesh.position.z -= 10;
@@ -445,7 +462,7 @@
 				var leafTex = new THREE.TextureLoader().load( 'textures/leafParticle3.png' );
 				leafTex.magFilter = THREE.NearestFilter;
 				leafTex.minFilter = THREE.LinearMipMapLinearFilter;
-				var leafMat = new THREE.MeshPhongMaterial( { map: leafTex, transparent: true, opacity: 1, depthWrite: false } );
+				var leafMat = new THREE.MeshLambertMaterial( { map: leafTex, transparent: true, opacity: 1, depthWrite: false } );
 				var leafMes = new THREE.Mesh( leafGeo, leafMat );
 				
 				for(var i = 0; i < 100; i++)
@@ -573,13 +590,22 @@
 			
 			//sets a global light with color = white
 			function initLights() {
-				var globalLight = new THREE.AmbientLight(0xaaaabb, 0.4);
+				var globalLight = new THREE.AmbientLight(0x88cccc, 0.4);
 				scene.add(globalLight);
+				/*
+				var spotLight = new THREE.SpotLight( 0xffffff );
+				spotLight.position.set( 40, 10, 50 );
+				scene.add( spotLight );
+				*/
 				
-				fLight = new THREE.PointLight( 0xffffff, 10, 500, 4);
-				fLight.position.set( 50, 500, 20 );
-				scene.add( fLight );
+				fLight = new THREE.PointLight( 0xffee77, 2, 100, 2 );
+				fLight.position.set( 200, 50, 200 );
+				scene.add( fLight )
 				
+				sun = new THREE.DirectionalLight(0xffffff, 0.3);
+				sun.position.set(0,1,1);
+				scene.add(sun);
+				scene.fog = new THREE.FogExp2( 0xaa33ff, 0.0015 );//0xaaccff
 			}
 			
 			//function to deal with mouse inputs
@@ -679,8 +705,8 @@
 				camera.getWorldDirection(cam);
 				
 				//camera moves forward, based on it rotation
-				//if(wFront == true){ camera.position.z -= 6;}
-				//if(wBack == true){ camera.position.z += 6;}
+				if(wFront == true){ addSun+= 0.02; sun.position.set(addSun,0,addSun); sun.color.set(new THREE.Color( 0.9 - addSun/5, 0.9 - addSun/5, 0.9 - addSun/5)); }
+				if(wBack == true){ addSun-= 0.02; sun.position.set(addSun,0,addSun); sun.color.set(new THREE.Color( 0.9 - addSun/5, 0.9 - addSun/5, 0.9 - addSun/5));}
 				//if(rotLeft == true){ camera.position.x -= 6;}
 				//if(rotRight == true){ camera.position.x += 6;}
 				//if(rotLeft == true){camera.rotation.y += 0.04;}
@@ -794,10 +820,9 @@
 					//aluV.position.x = camera.position.x;
 					//aluV.position.z = camera.position.z - 40;
 					aluV.rotation.x = camera.rotation.x + 0.4;
-					
-					//move fairy
-					fLight.position.set( aluV.position );
-					
+
+					fLight.position.set(aluV.position.x, 20, aluV.position.z);
+		
 					time2Physic = Date.now();
 					
 					if(Date.now() - time2Animat > 200)
