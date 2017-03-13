@@ -15,25 +15,47 @@
 		<!--Shaders Declaration-->
 		<script type="x-shader/x-vertex" id="vertexshader">
 			attribute float size;
-			attribute vec3 customColor;
-			varying vec3 vColor;
+			varying vec4 pointCoord;
+			attribute vec3 lightVec;
+			varying vec3 lightPos;
+			
 			void main() {
-				vColor = customColor;
+
 				vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
 				gl_PointSize = size * ( 300.0 / -mvPosition.z );
 				gl_Position = projectionMatrix * mvPosition;
+				
+				//vertexWorldPos = modelMatrix * vec4( position, 1.0 );
+				
+				pointCoord = vec4( position, 1.0 );
+				lightPos = lightVec;
+
 			}
 		</script>
 
 		<script type="x-shader/x-fragment" id="fragmentshader">
-			uniform vec3 color;
+
 			uniform sampler2D texture;
-			varying vec3 vColor;
+			varying vec4 pointCoord;
+			varying vec3 lightPos;
+			varying vec4 vertexWorldPos;
+
 			void main() {
-				gl_FragColor = vec4( color * vColor, 1.0 );
-				gl_FragColor = gl_FragColor * texture2D( texture, gl_PointCoord );
+			
+				float dist = sqrt( ((pointCoord.x - lightPos.x)*(pointCoord.x - lightPos.x)) + ((pointCoord.z - lightPos.z)*(pointCoord.z - lightPos.z)) );
+				dist = 140.0/(dist);
+				vec4 light = vec4(dist*dist, dist, dist, 1.0); 
+				light = normalize(light);
+				light = vec4( pow(light.x, 6.0), pow(light.x, 6.0), pow(light.x, 6.0), 1.0);
+				gl_FragColor = vec4(light.rgb,1.0) * texture2D( texture, gl_PointCoord ).rgba;
+				
+				if (gl_FragColor.a < 0.5)//transparency cutout, no blending
+				{
+				    discard; //discard this fragment
+				}
 			}
-		</script> 
+	
+		</script>
 		
 		
 	</head>
@@ -43,8 +65,6 @@
 				<p id="textelement" style="text-align: center;">I am a text element <button name="ALERT!" onclick='alert("Você foi alertado.")'>ALERT!</button></p>
 			</div>
 		</div>
-		
-		
 		
         <!--Tree Loader class-->
         <script src="classes/TreeLoader.js"></script>
@@ -62,10 +82,6 @@
 		<script src="maps/Grass1.js"></script>
 		
 		<script>
-			
-			//IMPORTANT note for future releases:
-			//consider using BufferGeometry objects to improve rendering performance (https://threejs.org/docs/api/core/BufferGeometry.html)
-			//read documentations!
 			
 			//the fps meter
 			var stats = new Stats();
@@ -125,6 +141,9 @@
 			
 			//sun direction
 			var addSun = 0;
+			
+			//particle system
+			var particleGeometry;
 			
 			//program
 			init();
@@ -241,8 +260,8 @@
 				pointrTex.minFilter = THREE.LinearMipMapLinearFilter;
 				playerTex.magFilter = THREE.NearestFilter;
 				playerTex.minFilter = THREE.LinearMipMapLinearFilter;
-				var playerMat = new THREE.MeshBasicMaterial( { map: playerTex, transparent: true, opacity: 1 } );
-				var shadowMat = new THREE.MeshBasicMaterial( { map: shadowTex, transparent: true, opacity: 0.5 ,depthWrite: false, color: 0x000000 } );
+				var playerMat = new THREE.MeshBasicMaterial( { map: playerTex, transparent: true, opacity: 1, depthWrite: false } );
+				var shadowMat = new THREE.MeshBasicMaterial( { map: shadowTex, transparent: true, opacity: 0.5 , depthWrite: false, color: 0x000000 } );
 				var pointrMat = new THREE.MeshBasicMaterial( { map: pointrTex, transparent: true, opacity: 1 , depthWrite: false } );
 				var playerGeometry = new THREE.PlaneBufferGeometry( 20, 30 );
 				var pointrGeometry = new THREE.PlaneBufferGeometry( 20, 20 );
@@ -292,12 +311,7 @@
 			
 				
 				
-				//IMPORTANT, generate a single 1280x1280 plane, with 64x64 quads
-				//re-order uvs
-				//raycast to local coordinates
-				
-				
-				//tile system 2/////////////////////////////////////////////////////////////////////////////
+				//tile system 2//////////////////////BAD PERFORMANCE//////////////////////////////////
 				/*
 				//tile geometry
 				var tileGeometry = new THREE.PlaneBufferGeometry( 20, 20 );
@@ -368,7 +382,7 @@
 				
 				
 				
-				
+			
 				//tile system 3/////////////////////////////
 				
 				var mapPlane = new THREE.BufferGeometry();
@@ -383,10 +397,9 @@
 				mapTexture.magFilter = THREE.NearestFilter;
 				mapTexture.minFilter = THREE.LinearMipMapLinearFilter;
 				
+				//normal map cabable material
 				var mapMaterial = new THREE.MeshPhongMaterial( { map: mapTexture, shininess: 1 } );
 				
-				
-				//set UV's according to TILED map information
 				//lay down a 64x64 tiles map
 				var count = 0;
 				var normArray = [];
@@ -406,9 +419,9 @@
 						
 						//console.log("ty: " + ty + " tx: " + tx);
 						
-						var xz = [[20*j, 20*i], [20*j+20, 20*i+20]];
+						var xz = [ [20*j, 20*i], [20*j+20, 20*i+20] ];
 						//select a tile from tilesheet
-						var uv = [[ty*0.0625, 1-(tx*0.0625)], [ty*0.0625 + 0.0625, (1-(tx*0.0625)) - 0.0625]];
+						var uv = [ [ty*0.0625, 1-(tx*0.0625)], [ty*0.0625 + 0.0625, (1-(tx*0.0625)) - 0.0625] ];
 						
 						//var uvList1 = [new THREE.Vector2(uv[0],uv[1]), new THREE.Vector2(uv[2],uv[1]), new THREE.Vector2(uv[0],uv[3])];
 						//var uvList2 = [new THREE.Vector2(uv[0],uv[3]), new THREE.Vector2(uv[2],uv[3]), new THREE.Vector2(uv[2],uv[1])];
@@ -418,9 +431,7 @@
 						uvArray.push(uv[0][0], uv[1][1], uv[1][0], uv[1][1], uv[1][0], uv[0][1]);
 						
 						normArray.push(0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0);
-						//normArray.push(0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1);
-						//idxArray.push(count);
-						
+			
 						
 						count++;
 					}
@@ -439,12 +450,11 @@
 				mapPlane.addAttribute("position", posBuffer);
 				mapPlane.addAttribute("normal", normBuffer);
 				mapPlane.addAttribute("uv", uvBuffer);
-				//mapPlane.addAttribute("index", idxBuffer);
+
 				mapMesh = new THREE.Mesh( mapPlane, mapMaterial );
 				mapMesh.position.x -= 10;
 				mapMesh.position.z -= 10;
 				mapMesh.position.y -= 20;
-				//mapMesh.rotation.x = -Math.PI/2;
 				
 				console.log(mapPlane);
 				scene.add(mapMesh);
@@ -456,8 +466,75 @@
 				
 				
 				
+				//particle system///////////////////////////
 				
-				//tree leaves using particles
+				var particles = 100;
+				
+				var parTex = new THREE.TextureLoader().load( 'textures/leafParticle3.png' );
+				parTex.magFilter = THREE.NearestFilter;
+				parTex.minFilter = THREE.LinearMipMapLinearFilter;
+					
+				var uniforms = {
+					//color:     { value: new THREE.Color( 0xffffff ) },
+					texture:   { value: parTex },
+					//fog: true
+				};
+				
+				var shaderMaterial = new THREE.ShaderMaterial( {
+					uniforms:       uniforms,
+					vertexShader:   document.getElementById( 'vertexshader' ).textContent,
+					fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
+					//blending:       THREE.AdditiveBlending,
+					depthTest:      true,
+					transparent:    true
+				});
+
+
+				var parMat = new THREE.MeshLambertMaterial( { map: parTex, transparent: true, opacity: 1, depthWrite: false } );
+				
+				var radius = 40;
+				
+				var starsMaterial = new THREE.PointsMaterial( { map: parTex, transparent: true, opacity: 1, depthWrite: false } )
+				starsMaterial.size = 20;
+				starsMaterial._lights = true;
+				
+				particleGeometry = new THREE.BufferGeometry();
+				
+				var positions = new Float32Array( particles * 3 );
+				var sizes = new Float32Array( particles );
+				var lightVec = new Float32Array( particles * 3 );
+				
+				for ( var i = 0, i3 = 0; i < particles; i ++, i3 += 3 ) {
+				
+					positions[ i3 + 0 ] = 355 + Math.random()* 80;
+					positions[ i3 + 1 ] = 30 + Math.random()* 50;
+					positions[ i3 + 2 ] = 175 + Math.random()* 70;
+
+					lightVec[0 + i3] = 0.0;
+					lightVec[1 + i3] = 0.0;
+					lightVec[2 + i3] = 0.0;
+					
+					sizes[ i ] = 25 + 5*(Math.random()*2 -2);
+				}
+				
+				//adds attributes to our shader uniforms
+				particleGeometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+				particleGeometry.addAttribute( 'size', new THREE.BufferAttribute( sizes, 1 ) );
+				particleGeometry.addAttribute( 'lightVec', new THREE.BufferAttribute( lightVec, 3 ) );
+				
+				//this material won't react to lights
+				//var ParTmaterial = new THREE.PointsMaterial( { size: 1, transparent: true, color: 0xffffff, size: 20, map: parTex  } );
+				
+				var particleSystem = new THREE.Points( particleGeometry, shaderMaterial );
+				scene.add( particleSystem );
+				
+				//particleSystem.position.set( aluV.position.x, aluV.position.y + 40, aluV.position.z);
+				//end particle system///////////////////////
+				
+				
+				/*
+				//BAD performance
+				//tree leaves using planes
 				var leafGeo = new THREE.PlaneBufferGeometry( 20, 20 );
 				var leafTex = new THREE.TextureLoader().load( 'textures/leafParticle3.png' );
 				leafTex.magFilter = THREE.NearestFilter;
@@ -474,6 +551,8 @@
 					leaves[i] = leafMes.clone();
 					scene.add(leaves[i]);
 				}
+				*/
+				
 				/*
 				//second: we are using JSON files to load our objects, with materials and textures
 				//those files can be generated by using the three.js blender plugin
@@ -657,9 +736,7 @@
 					audio.play();
 					playing = true;
 				}
-				
-				//console.log("time: " +Date.now() / 1000);
-
+			
 				requestAnimationFrame( animate );
 				
 				//the key events occur once, so we need to set a flag to keep the key "pressed"
@@ -735,11 +812,13 @@
 					dirPointer.position.z = clickPosition.z;
                 }
 
+				/*
 				//leaves lookAt
 				for(var i = 0; i<100; i++)
 				{
 					leaves[i].lookAt( new THREE.Vector3( leaves[i].position.x , camera.position.y, camera.position.z ) );
 				}
+				*/
 				
                 //input 
 				//TODO paradinha no lugar dela :D
@@ -823,12 +902,38 @@
 
 					fLight.position.set(aluV.position.x, 20, aluV.position.z);
 		
+					//shader light
+					var posLight = particleGeometry.attributes.lightVec.array;
+					var sum = 0;
+					for(var i = 0; i < 300; i++)
+					{	
+						if(sum == 0)
+						{
+							posLight[i] = fLight.position.x; //add all values one by one	
+						}
+						if(sum == 1)
+						{
+							posLight[i] = fLight.position.y; //add all values one by one	
+						}
+						if(sum == 2)
+						{
+							posLight[i] = fLight.position.z; //add all values one by one
+							sum = -1;
+						}
+						sum++;
+					}
+					particleGeometry.attributes.lightVec.needsUpdate = true;
+		
+		
 					time2Physic = Date.now();
 					
-					if(Date.now() - time2Animat > 200)
+					if(Date.now() - time2Animat > 2000)
 					{
+						//console.log(posLight);
 						animateSprites();
+						time2Animat = Date.now();
 					}
+					
 					
 				}
 				
