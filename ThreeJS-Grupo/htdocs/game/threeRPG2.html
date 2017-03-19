@@ -12,51 +12,6 @@
 			}
 		</style>
 
-		<!--Shaders Declaration-->
-		<script type="x-shader/x-vertex" id="vertexshader">
-			attribute float size;
-			varying vec4 pointCoord;
-			attribute vec3 lightVec;
-			varying vec3 lightPos;
-			
-			void main() {
-
-				vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
-				gl_PointSize = size * ( 300.0 / -mvPosition.z );
-				gl_Position = projectionMatrix * mvPosition;
-				
-				//vertexWorldPos = modelMatrix * vec4( position, 1.0 );
-				
-				pointCoord = vec4( position, 1.0 );
-				lightPos = lightVec;
-
-			}
-		</script>
-
-		<script type="x-shader/x-fragment" id="fragmentshader">
-
-			uniform sampler2D texture;
-			varying vec4 pointCoord;
-			varying vec3 lightPos;
-			varying vec4 vertexWorldPos;
-
-			void main() {
-			
-				float dist = sqrt( ((pointCoord.x - lightPos.x)*(pointCoord.x - lightPos.x)) + ((pointCoord.z - lightPos.z)*(pointCoord.z - lightPos.z)) );
-				dist = 140.0/(dist);
-				vec4 light = vec4(dist*dist, dist, dist, 1.0); 
-				light = normalize(light);
-				light = vec4( pow(light.x, 6.0), pow(light.x, 6.0), pow(light.x, 6.0), 1.0);
-				gl_FragColor = vec4(light.rgb,1.0) * texture2D( texture, gl_PointCoord ).rgba;
-				
-				if (gl_FragColor.a < 0.5)//transparency cutout, no blending
-				{
-				    discard; //discard this fragment
-				}
-			}
-	
-		</script>
-		
 		
 	</head>
 	<body>
@@ -80,6 +35,9 @@
 		
 		<!--Map Tiles Document-->
 		<script src="maps/Grass1.js"></script>
+		
+		<!--Shaders File-->
+		<script src="../shaders/OuterGlow.js"></script>
 		
 		<script>
 			
@@ -139,11 +97,17 @@
             var time2Physic = 0;
 			var time2Animat = 0;
 			
+			//kleb
+			var klebMesh;
+			
 			//sun direction
 			var addSun = 0;
 			
 			//particle system
 			var particleGeometry;
+			
+			//kleber texture
+			var klebTex;
 			
 			//program
 			init();
@@ -251,6 +215,29 @@
 				}*/
 				//end tile system////////////////////////////
 				
+				//klebinho test//////////////
+				
+				var klebGeometry = new THREE.PlaneBufferGeometry( 20, 20 );
+				
+				klebTex = new THREE.TextureLoader().load( 'textures/klebinho1.png' );
+				klebTex.magFilter = THREE.NearestFilter;
+				klebTex.minFilter = THREE.LinearMipMapLinearFilter;
+				
+				klebTex.repeat.x = klebTex.repeat.y = 0.16667;
+				klebTex.offset.x = klebTex.offset.y = 0.8333;
+				
+				var klebMat = new THREE.MeshBasicMaterial( { map: klebTex, transparent: true, opacity: 1, depthWrite: false } );
+				klebMesh = new THREE.Mesh( klebGeometry, klebMat );
+				scene.add( klebMesh );
+				
+				klebMesh.position.x = 340;
+				klebMesh.position.y = -10;
+				klebMesh.position.z = 260;
+				
+				
+				//klebMesh.rotation.x = -Math.PI/2;
+				
+				//klebinho end //////////////
 				
 				//player test
 				var playerTex = new THREE.TextureLoader().load( 'textures/testAlu.png' );
@@ -294,6 +281,7 @@
 					var material = new THREE.MeshLambertMaterial({
                      map: barkTex});
 					material.normalMap = barkTex2;
+					var glowMat = new OutGlowMaterial( new THREE.Color(0x00ffff));
 					var meshe = new THREE.Mesh(o.geometry, material);
 					meshe.scale.x = meshe.scale.y = meshe.scale.z = 16;
 					meshe.position.y -= 50;
@@ -470,33 +458,19 @@
 				
 				var particles = 100;
 				
-				var parTex = new THREE.TextureLoader().load( 'textures/leafParticle3.png' );
-				parTex.magFilter = THREE.NearestFilter;
-				parTex.minFilter = THREE.LinearMipMapLinearFilter;
+				//var parTex = new THREE.TextureLoader().load( 'textures/leafParticle3.png' );
+				//parTex.magFilter = THREE.NearestFilter;
+				//parTex.minFilter = THREE.LinearMipMapLinearFilter;
 					
-				var uniforms = {
-					//color:     { value: new THREE.Color( 0xffffff ) },
-					texture:   { value: parTex },
-					//fog: true
-				};
-				
-				var shaderMaterial = new THREE.ShaderMaterial( {
-					uniforms:       uniforms,
-					vertexShader:   document.getElementById( 'vertexshader' ).textContent,
-					fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
-					//blending:       THREE.AdditiveBlending,
-					depthTest:      true,
-					transparent:    true
-				});
 
-
-				var parMat = new THREE.MeshLambertMaterial( { map: parTex, transparent: true, opacity: 1, depthWrite: false } );
+				var myParticleMat = new ParticleMaterial('textures/leafParticle3.png');
 				
-				var radius = 40;
+				//var parMat = new THREE.MeshLambertMaterial( { map: parTex, transparent: true, opacity: 1, depthWrite: false } );
 				
-				var starsMaterial = new THREE.PointsMaterial( { map: parTex, transparent: true, opacity: 1, depthWrite: false } )
-				starsMaterial.size = 20;
-				starsMaterial._lights = true;
+				//var radius = 40;
+				
+				//var starsMaterial = new THREE.PointsMaterial( { map: parTex, transparent: true, opacity: 1, depthWrite: false } )
+				//starsMaterial.size = 20;
 				
 				particleGeometry = new THREE.BufferGeometry();
 				
@@ -525,10 +499,45 @@
 				//this material won't react to lights
 				//var ParTmaterial = new THREE.PointsMaterial( { size: 1, transparent: true, color: 0xffffff, size: 20, map: parTex  } );
 				
-				var particleSystem = new THREE.Points( particleGeometry, shaderMaterial );
+				var particleSystem = new THREE.Points( particleGeometry, myParticleMat );
 				scene.add( particleSystem );
 				
-				//particleSystem.position.set( aluV.position.x, aluV.position.y + 40, aluV.position.z);
+				//Light rays particle system//////////////////////////
+					
+				var partCount = 101;	
+					
+				var myLightMat = new LightRayMaterial('textures/lightRay3.png');
+				
+				lightPGeometry = new THREE.BufferGeometry();
+				
+				var positions = new Float32Array( partCount * 3 );
+				var sizes = new Float32Array( partCount );
+				var lightVec = new Float32Array( partCount * 3 );
+				
+				for ( var i = 0, i3 = 0; i < partCount; i ++, i3 += 3 ) {
+				
+					positions[ i3 + 0 ] = Math.random()* 800;
+					positions[ i3 + 1 ] = 40-Math.random()* 20;
+					positions[ i3 + 2 ] = Math.random()* 800;
+
+					lightVec[0 + i3] = 0.0;
+					lightVec[1 + i3] = 0.0;
+					lightVec[2 + i3] = 0.0;
+					
+					sizes[ i ] = 350 + 5*(Math.random()*2 -2);
+				}
+				
+				//adds attributes to our shader uniforms
+				lightPGeometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+				lightPGeometry.addAttribute( 'size', new THREE.BufferAttribute( sizes, 1 ) );
+				lightPGeometry.addAttribute( 'lightVec', new THREE.BufferAttribute( lightVec, 3 ) );
+				
+				//this material won't react to lights
+				//var ParTmaterial = new THREE.PointsMaterial( { size: 1, transparent: true, color: 0xffffff, size: 20, map: parTex  } );
+				
+				var pLightSystem = new THREE.Points( lightPGeometry, myLightMat );
+				scene.add( pLightSystem );
+				
 				//end particle system///////////////////////
 				
 				
@@ -655,6 +664,7 @@
                 grid = new PF.Grid(matrixGrid);
                 //console.log(matrixGrid);
                 finder = new PF.AStarFinder({allowDiagonal:true}) ;
+				
 
 			}
 			
@@ -684,7 +694,7 @@
 				sun = new THREE.DirectionalLight(0xffffff, 0.3);
 				sun.position.set(0,1,1);
 				scene.add(sun);
-				scene.fog = new THREE.FogExp2( 0xaa33ff, 0.0015 );//0xaaccff
+				scene.fog = new THREE.Fog( 0xbb55ff, 0.15, 1000 );//0xaaccff
 			}
 			
 			//function to deal with mouse inputs
@@ -838,11 +848,14 @@
 					
 					var catMullCurve = new THREE.CatmullRomCurve3(curve);
 					
-					if(path.length > 0)
+					if(path.length > 1)
 					{
 						path2 = catMullCurve.getSpacedPoints(path.length*2);
 					}
-					
+					else
+					{
+						executePath = false;
+					}
 					trajPoints = 2;
 					
 					charVel = new THREE.Vector3( ((20*path2[trajPoints].x) - aluV.position.x) , 0, ((20*path2[trajPoints].z) - aluV.position.z)).normalize();
@@ -855,8 +868,8 @@
 				if((Date.now() - time2Physic) >= 10) 
 				{
 					if(executePath == true)
-					{
-
+					{	
+					
 						if(trajPoints < path2.length)
 						{   
 
@@ -881,6 +894,7 @@
 						}
 						else{
 							executePath = false;
+							charVel = new THREE.Vector3(0.0,0.0,0.0);
 						}
 					}
 					
@@ -899,38 +913,59 @@
 					//aluV.position.x = camera.position.x;
 					//aluV.position.z = camera.position.z - 40;
 					aluV.rotation.x = camera.rotation.x + 0.4;
-
+						
+					klebMesh.rotation.x = camera.rotation.x + 0.4;
+					
 					fLight.position.set(aluV.position.x, 20, aluV.position.z);
 		
 					//shader light
 					var posLight = particleGeometry.attributes.lightVec.array;
+					var posChar = lightPGeometry.attributes.lightVec.array;
 					var sum = 0;
 					for(var i = 0; i < 300; i++)
 					{	
 						if(sum == 0)
 						{
 							posLight[i] = fLight.position.x; //add all values one by one	
+							posChar[i] = fLight.position.x;
 						}
 						if(sum == 1)
 						{
 							posLight[i] = fLight.position.y; //add all values one by one	
+							posChar[i] = fLight.position.y;
 						}
 						if(sum == 2)
 						{
 							posLight[i] = fLight.position.z; //add all values one by one
+							posChar[i] = fLight.position.z;
 							sum = -1;
 						}
 						sum++;
 					}
 					particleGeometry.attributes.lightVec.needsUpdate = true;
-		
+					lightPGeometry.attributes.lightVec.needsUpdate = true;
 		
 					time2Physic = Date.now();
 					
-					if(Date.now() - time2Animat > 2000)
+					if(Date.now() - time2Animat > 80)
 					{
 						//console.log(posLight);
 						animateSprites();
+						
+						if(charVel.x == 0 && charVel.z == 0){ klebTex.offset.y = 0.83334; } //stopped
+						if(charVel.x > 0 && charVel.z < 0.7){ klebTex.offset.y = 0.66667; } //right
+						if(charVel.x < 0 && charVel.z < 0.7){ klebTex.offset.y = 0.50000; } //left
+						if(charVel.x < 0.7 && charVel.z < 0){ klebTex.offset.y = 0.33334; } //top
+						if(charVel.x < 0.7 && charVel.z > 0){ klebTex.offset.y = 0.16667; } //down
+						
+						if(klebTex.offset.x >= 0.83334)
+						{ 
+						    klebTex.offset.x = 0;
+						}
+						else{
+							klebTex.offset.x += 0.16667;
+						}
+						
 						time2Animat = Date.now();
 					}
 					
